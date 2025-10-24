@@ -4,8 +4,7 @@
 This repository contains the code, experiments, documentation, and writing for our master's thesis project (NTNU / Industrial Economics and Technology Management, 2025).
 
 **Research question (draft):**  
-We develop a multimarket, multistage stochastic optimization model for optimal bidding of wind power in the Norwegian electricity market.  
-The model incorporates market uncertainty, production variability, and system constraints to evaluate different bidding strategies under varying scenarios.
+How can an applied mathematical model for multimarket optimization of Norwegian wind power producer's bidding strategy, incorporating market uncertainty, production variability, and system constraints, enhance the total profit of wind power production?
 
 We will update this section as the project evolves.
 
@@ -177,3 +176,4 @@ Do not redistribute data or code without permission from the authors and supervi
 
 
 All assumptions, constraints, and observations should be recorded in docs/ or the experiment folder.
+
