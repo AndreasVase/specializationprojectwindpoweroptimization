@@ -1,4 +1,4 @@
-# Master Thesis Project (Working Title)
+# Multimarket, multistage stochastic optimization model for optimal bidding strategy of wind power in Norway (Working Title)
 
 ## Project Summary
 This repository contains the code, experiments, documentation, and writing for our master's thesis project (NTNU / [Your Program Here], 2025).
@@ -67,4 +67,5 @@ Supervisors:
 │
 └─ tests/                  # Unit tests for src/
    └─ test_example.py
+
 
