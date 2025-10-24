@@ -13,11 +13,12 @@ We will update this once the problem statement is finalized.
 
 ## Team
 - Andreas Buer Vase  
-- [Teammate 2 Name]  
-- [Teammate 3 Name]  
+- Jørgen Stenersen
+- Torger Skrettingland
 
 Supervisors:
-- [Supervisor / contact if relevant]
+- Carl Henrik Andersson
+- Odd Erik Gundersen (co-supervisor)
 
 ---
 
@@ -66,3 +67,4 @@ Supervisors:
 │
 └─ tests/                  # Unit tests for src/
    └─ test_example.py
+
