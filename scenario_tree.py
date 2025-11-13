@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from itertools import product
 from typing import Dict, List, Any, Optional
+import read
 
 
 @dataclass
@@ -12,14 +13,9 @@ class Node:
     cond_prob: float          # betinget sannsynlighet gitt foreldrenoden
 
 
-def build_scenario_tree(
-    CM_up,
-    CM_down,
-    DA,
-    EAM_up,
-    EAM_down,
-    wind_speed,
-):
+def build_scenario_tree(path: str) -> Dict[str, Any]:
+    
+    CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed = read.load_parameters_from_csv(path)
     """
     Bygger scenariotre for:
       - Stage 1: root (før alt er kjent)
@@ -158,31 +154,3 @@ def build_sets_from_tree(tree):
     S = U.union(V_all).union(W_all)
 
     return U, V, W, S
-
-# -------------------------------------------------------------
-# Eksempelbruk fra modellfilen
-# -------------------------------------------------------------
-if __name__ == "__main__":
-    CM_up      = [4, 7]
-    CM_down    = [6, 8]
-    DA         = [3, 5]
-    EAM_up     = [4.5, 6.5]
-    EAM_down   = [3.5, 5.0]
-    wind_speed = [8, 10, 12]
-
-    scenario_tree = build_scenario_tree(
-        CM_up=CM_up,
-        CM_down=CM_down,
-        DA=DA,
-        EAM_up=EAM_up,
-        EAM_down=EAM_down,
-        wind_speed=wind_speed,
-    )
-
-    U, V, W, S = build_sets_from_tree(scenario_tree)
-
-    # Eksempel: skriv ut antall løvnoder (skal være 96 i eksemplet ditt)
-    print(f"Antall scenarier: {len(scenario_tree['scenarios'])}")
-
-    for u in U:
-        print(V[u])

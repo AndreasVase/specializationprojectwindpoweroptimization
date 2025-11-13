@@ -14,43 +14,10 @@ M_v = ["DA"]
 M_w = ["EAM_up", "EAM_down"]
 M  = M_u + M_v + M_w
 
-# input data
-CM_up      = [
-    2.0, 4.0, 6.0,
-    8.0, 10.0, 12.0
-]
-CM_down    = [
-    3.0, 5.5, 6.0,
-    8.0, 10.0, 13.0
-]
-DA         = [
-    20.0, 30.0, 40.0,
-    45.0, 55.0, 70.0
-]
-EAM_up     = [
-    30.0, 40.0, 45.0,
-    55.0, 65.0, 80.0
-]
-EAM_down   =  [
-    5.0, 12.0, 18.0,
-    20.0, 25.0, 30.0
-]     
-wind_speed = [
-    3.0, 6.0, 9.0,
-    10.5, 13.5, 17.0
-]
 
 
 # --- Bygg treet ---
-scenario_tree = build_scenario_tree(
-    CM_up=CM_up,
-    CM_down=CM_down,
-    DA=DA,
-    EAM_up=EAM_up,
-    EAM_down=EAM_down,
-    wind_speed=wind_speed
-)
-
+scenario_tree = build_scenario_tree("./input_data.csv")
 
 # --- Bygg sett fra treet ---
 U, V, W, S = build_sets_from_tree(scenario_tree)
