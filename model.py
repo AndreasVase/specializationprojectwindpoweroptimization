@@ -7,7 +7,7 @@ import utils
 import json
 
 
-def run_model(data_path, det_policy_file, evaluate_deterministic_policy=False, verbose=True):
+def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=False, only_da_and_eam=False, verbose=True):
 
     model = gp.Model()
 
@@ -280,12 +280,15 @@ def run_model(data_path, det_policy_file, evaluate_deterministic_policy=False, v
         )
 
 
-    # --- EVALUATE DETERMINISTIC POLICY ---
+    # --- EVALUATE DETERMINISTIC CM POLICY ---
     if evaluate_deterministic_policy:
+
+        print("Evaluating deterministic CM policy from file:", det_policy_file)
+
         with open(det_policy_file, "r") as f:
             det_policy = json.load(f)
 
-        # FIKS x,r (CM) TIL DEN DETERMINISTISKE POLICYEN
+        # fiks x,r (CM) til den deterministiske policyen
         for m in det_policy if m in M_u else []:
             for s in S:
                 if (m, s) in x:  # sjekk at paret finnes
@@ -293,6 +296,19 @@ def run_model(data_path, det_policy_file, evaluate_deterministic_policy=False, v
                                     name=f"fix_x_{m}_{s}")
                     model.addConstr(r[m, s] == det_policy[m]["r"],
                                     name=f"fix_r_{m}_{s}")
+
+    # --- EVALUATE MODEL WITH ONLY DA AND EAM ---
+    print("Evaluating model with only DA and EAM markets included.")
+
+    if only_da_and_eam:
+        for m in M_u:
+            for s in S:
+                if (m, s) in x:  # sjekk at paret finnes
+                    model.addConstr(x[m, s] == 0,
+                                    name=f"fix_x_zero_{m}_{s}")
+                    model.addConstr(r[m, s] == 0,
+                                    name=f"fix_r_zero_{m}_{s}")
+    
 
 
     # --- OPTIMIZE MODEL ---
