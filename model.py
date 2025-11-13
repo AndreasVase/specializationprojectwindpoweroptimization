@@ -14,23 +14,31 @@ M_v = ["DA"]
 M_w = ["EAM_up", "EAM_down"]
 M  = M_u + M_v + M_w
 
-
-# --- Input data ---
-CM_up      = [4, 7]
-CM_down    = [6, 8]
-DA         = [3, 5]
-EAM_up     = [4.5, 6.5]
-EAM_down   = [3.5, 5.0]
-wind_speed = [8, 10, 12]
-
-# kost per MW avvik for hvert produkt m
-C_data = {
-    "CM_up":   10.0,   # eksempelverdi [€/MW]
-    "CM_down": 10.0,
-    "DA":      10.0,
-    "EAM_up":  30.0,
-    "EAM_down": 30.0,
-}
+# input data
+CM_up      = [
+    2.0, 4.0, 6.0,
+    8.0, 10.0, 12.0
+]
+CM_down    = [
+    3.0, 5.5, 6.0,
+    8.0, 10.0, 13.0
+]
+DA         = [
+    20.0, 30.0, 40.0,
+    45.0, 55.0, 70.0
+]
+EAM_up     = [
+    30.0, 40.0, 45.0,
+    55.0, 65.0, 80.0
+]
+EAM_down   =  [
+    5.0, 12.0, 18.0,
+    20.0, 25.0, 30.0
+]     
+wind_speed = [
+    3.0, 6.0, 9.0,
+    10.5, 13.5, 17.0
+]
 
 
 # --- Bygg treet ---
@@ -105,7 +113,16 @@ def build_production_capacity(tree):
 
 P = build_price_parameter(scenario_tree)
 Q = build_production_capacity(scenario_tree)
-C = {m: C_data[m] for m in M}
+
+
+# Kost per MW avvik for hvert produkt m
+C = {}
+for w in W:
+    C["CM_up"] = 3 * P[("DA", w)]
+    C["CM_down"] = 3 * P[("DA", w)]
+    C["DA"] = 2 * P[("DA", w)]
+    C["EAM_up"] = 1.5 * P[("DA", w)]
+    C["EAM_down"] = 1.5 * P[("DA", w)]
 
 BIGM = 1000
 
@@ -372,12 +389,23 @@ for w in W_all:
 model.optimize()
 
 
-def print_results(model, x, r, a, delta, d, U, V_all, W_all, M1, M2, M3):
+
+def sort_nodes(node_set):
+    """Sorter noder som 'v1', 'v2', ..., 'v10' i numerisk rekkefølge."""
+    def node_key(s):
+        try:
+            return int(s[1:])  # antar format 'v1', 'w12' etc.
+        except ValueError:
+            return s
+    return sorted(node_set, key=node_key)
+
+
+def print_results(model, x, r, a, delta, d,
+                  U, V, W, V_all, W_all, M1, M2, M3):
 
     if model.Status != GRB.OPTIMAL:
         print("Model not solved to optimality. Status:", model.Status)
         return
-
 
     print("\n======================")
     print("   OPTIMAL SOLUTION")
@@ -386,64 +414,51 @@ def print_results(model, x, r, a, delta, d, U, V_all, W_all, M1, M2, M3):
     # Objective value
     print(f"Objective value: {model.ObjVal:,.4f}\n")
 
-    # ------------------------
-    # Helper for clean output
-    # ------------------------
-    def print_nonzero(title, var_dict):
-        print(f"--- {title} ---")
-        found = False
-        for key, var in var_dict.items():
-            if abs(var.X) > 1e-8:
-                print(f"{key}: {var.X:,.4f}")
-                found = True
-        if not found:
-            print("(all zero)")
-        print()
-
-    # ------------------------
-    # Print by variable group
-    # ------------------------
-
-    # X (quantities)
-    print_nonzero("Bid quantities x[m,s]", x)
-
-    # R (prices)
-    print_nonzero("Bid prices r[m,s]", r)
-
-    # A (activated quantities)
-    print_nonzero("Activated a[m,s]", a)
-
-    # Delta (binary acceptance indicators)
-    print("--- Binary Acceptances δ[m,s] ---")
-    for key, var in delta.items():
-        print(f"{key}: {int(round(var.X))}")
+    # ---------- Stage 2: CM (samme for alle u pga ikke-anticipativitet) ----------
+    u0 = next(iter(U))
+    print("--- Stage 2 (CM) – same for all u (by non-anticipativity) ---")
+    for m in M1:
+        print(
+            f"{m}: x={x[m,u0].X:.3f}, "
+            f"a={a[m,u0].X:.3f}, "
+            f"r={r[m,u0].X:.3f}, "
+            f"δ={int(round(delta[m,u0].X))}"
+        )
     print()
 
-    # D (deviations only in terminal nodes)
-    print_nonzero("Deviation d[m,w]", d)
-
-    # ------------------------
-    # Scenario-wise aggregated output
-    # ------------------------
-    print("============== SCENARIO OUTPUT ==============\n")
-
-    print("--- Stage 2 (CM): u ∈ U ---")
-    for u in U:
-        for m in M1:
-            print(f"{m} in {u}: x={x[m,u].X:.3f}, a={a[m,u].X:.3f}, r={r[m,u].X:.3f}, δ={int(delta[m,u].X)}")
-        print()
-
-    print("--- Stage 3 (DA): v ∈ V ---")
-    for v in V_all:
+    # ---------- Stage 3: DA per v-node (sortert v1, v2, ..., vN) ----------
+    print("--- Stage 3 (DA) – per v ---")
+    for v in sort_nodes(V_all):
         for m in M2:
-            print(f"{m} in {v}: x={x[m,v].X:.3f}, a={a[m,v].X:.3f}, r={r[m,v].X:.3f}, δ={int(delta[m,v].X)}")
-        print()
+            print(
+                f"{m} in {v}: "
+                f"x={x[m,v].X:.3f}, "
+                f"a={a[m,v].X:.3f}, "
+                f"r={r[m,v].X:.3f}, "
+                f"δ={int(round(delta[m,v].X))}"
+            )
+    print()
 
-    print("--- Stage 4 (EAM): w ∈ W ---")
-    for w in W_all:
-        for m in M3:
-            print(f"{m} in {w}: x={x[m,w].X:.3f}, a={a[m,w].X:.3f}, r={r[m,w].X:.3f}, δ={int(delta[m,w].X)}, d={d[m,w].X:.3f}")
-        print()
+    # ---------- Stage 4: EAM – representative w per v ----------
+    print("--- Stage 4 (EAM) – representative child scenarios per v ---")
+    max_w_per_v = 1  # juster hvis du vil se flere/færre
+
+    for v in sort_nodes(V_all):
+        W_v = W[v]
+        W_sample = sort_nodes(W_v)[:max_w_per_v]
+
+        print(f"\nParent scenario {v}:")
+        for w in W_sample:
+            for m in M3:
+                print(
+                    f"  {m} in {w}: "
+                    f"x={x[m,w].X:.3f}, "
+                    f"a={a[m,w].X:.3f}, "
+                    f"r={r[m,w].X:.3f}, "
+                    f"δ={int(round(delta[m,w].X))}, "
+                    f"d={d[m,w].X:.3f}"
+                )
+    print()
 
     print("=============================================")
     print("            END OF RESULTS")
@@ -451,5 +466,5 @@ def print_results(model, x, r, a, delta, d, U, V_all, W_all, M1, M2, M3):
 
 
 print_results(model, x, r, a, delta, d,
-              U, V_all, W_all,
+              U, V, W, V_all, W_all,
               M_u, M_v, M_w)
