@@ -1,5 +1,15 @@
 from gurobipy import GRB
 
+def wind_speed_to_production_capacity(wind_speed):
+    prod_cap = wind_speed  # enkel mapping som eksempel
+    return prod_cap
+
+
+def build_cost_coefficients(P):
+    return
+
+
+
 def build_price_parameter(tree):
     """
     Lager P_ms som dictionary:
@@ -49,11 +59,12 @@ def build_production_capacity(tree):
         if node.stage == 4:
             wind = node.info["wind_speed"]
 
-            # HER legges det inn en mer realistisk produksjonsfunksjon
-            prod_cap = wind  # enkel mapping som eksempel
+            prod_cap = wind_speed_to_production_capacity(wind)
             Q[w] = prod_cap
 
     return Q
+
+
 
 def sort_nodes(node_set):
     """Sorter noder som 'v1', 'v2', ..., 'v10' i numerisk rekkefølge."""
@@ -67,7 +78,7 @@ def sort_nodes(node_set):
 
 
 def print_results(model, x, r, a, delta, d,
-                  U, V, W, V_all, W_all, M1, M2, M3):
+                  U, V, W, M1, M2, M3):
 
     if model.Status != GRB.OPTIMAL:
         print("Model not solved to optimality. Status:", model.Status)
@@ -136,10 +147,62 @@ def print_results(model, x, r, a, delta, d,
     print("=============================================\n")
 
 
-def print_deterministic_policy_results(model):
-    print("\n===== EV OF DETERMINISTIC POLICY =====")
-    if model.Status == GRB.OPTIMAL:
-        print(f"Expected objective value: {model.ObjVal:.4f}")
-    else:
-        print("Model not optimal, status:", model.Status)
+
+
+def print_results_deterministic_policy(
+    model, x, a, r, delta, d, U, V, W, M_u, M_v, M_w
+):
+    num_v = 3   # hvor mange v-scenarier å vise
+    num_w = 2   # hvor mange w per v
+
+    print("\n======================================")
+    print("     EXPECTED VALUE OF POLICY (EVP)")
+    print("======================================\n")
+
+    print(f"Objective value: {model.ObjVal:,.4f}\n")
+
+    # Stage 2
+    print("Stage 2 (CM) — deterministic policy:")
+    u0 = sorted(U)[0]
+    for m in M_u:
+        print(
+            f"  {m}: x={x[m,u0].X:.3f}, "
+            f"r={r[m,u0].X:.3f}, "
+            f"a={a[m,u0].X:.3f}, "
+            f"δ={int(delta[m,u0].X)}"
+        )
+
+    # Stage 3
+    print("\nStage 3 (DA) — representative v nodes:")
+    V_all_sorted = sorted(set().union(*V.values()))
+    V_subset = V_all_sorted[:num_v]
+
+    for v in V_subset:
+        for m in M_v:
+            print(
+                f"  v={v}, {m}: x={x[m,v].X:.3f}, "
+                f"r={r[m,v].X:.3f}, "
+                f"a={a[m,v].X:.3f}, "
+                f"δ={int(delta[m,v].X)}"
+            )
+
+    # Stage 4
+    print("\nStage 4 (EAM) — representative w children:")
+    for v in V_subset:
+        print(f"\n  Parent v={v}:")
+        W_subset = sorted(W[v])[:num_w]
+
+        for w in W_subset:
+            for m in M_w:
+                print(
+                    f"    w={w}, {m}: "
+                    f"x={x[m,w].X:.3f}, "
+                    f"a={a[m,w].X:.3f}, "
+                    f"r={r[m,w].X:.3f}, "
+                    f"δ={int(delta[m,w].X)}, "
+                    f"d={d[m,w].X:.3f}"
+                )
+
+    print("\n======================================")
+    print("        END OF EVP DEBUG REPORT")
     print("======================================\n")

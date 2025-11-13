@@ -154,3 +154,38 @@ def build_sets_from_tree(tree):
     S = U.union(V_all).union(W_all)
 
     return U, V, W, S
+
+
+def build_index_sets(U, V_all, W_all, M_u, M_v, M_w, M):
+    """
+    Build index sets for (m,s) and (m,w).
+
+    Returns:
+        idx_ms : list of (m, s) for all valid market-stage combinations
+        idx_mw : list of (m, w) for all m in M and all w in W_all for d_{m,w}
+    """
+
+    idx_ms = []
+
+    # Stage 2: CM markets (m in M_u, s in U)
+    for u in U:
+        for m in M_u:
+            idx_ms.append((m, u))
+
+    # Stage 3: DA market (m in M_v, s in V_all)
+    for v in V_all:
+        for m in M_v:
+            idx_ms.append((m, v))
+
+    # Stage 4: EAM markets (m in M_w, s in W_all)
+    for w in W_all:
+        for m in M_w:
+            idx_ms.append((m, w))
+
+    # d_{m,w}: only scenarios w, but all products m
+    idx_mw = []
+    for w in W_all:
+        for m in M:
+            idx_mw.append((m, w))
+
+    return idx_ms, idx_mw

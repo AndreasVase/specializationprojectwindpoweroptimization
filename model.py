@@ -2,12 +2,12 @@ import itertools
 import gurobipy as gp
 from gurobipy import GRB
 import numpy as np
-from scenario_tree import build_scenario_tree, build_sets_from_tree
+import tree
 import utils
 import json
 
 
-def run_model(data_path="./input_data.csv", evaluate_deterministic_policy=False, policy_file="deterministic_policy.json", verbose=True):
+def run_model(data_path, det_policy_file, evaluate_deterministic_policy=False, verbose=True):
 
     model = gp.Model()
 
@@ -20,15 +20,21 @@ def run_model(data_path="./input_data.csv", evaluate_deterministic_policy=False,
     M  = M_u + M_v + M_w
 
 
+    # Bygg treet
+    scenario_tree = tree.build_scenario_tree(data_path)
 
-    # --- Bygg treet ---
-    scenario_tree = build_scenario_tree(data_path)
-
-    # --- Bygg sett fra treet ---
-    U, V, W, S = build_sets_from_tree(scenario_tree)
+    # Bygg sett fra treet
+    U, V, W, S = tree.build_sets_from_tree(scenario_tree)
+    
     # flate mengder for v- og w-noder:
     V_all = set().union(*V.values())
     W_all = set().union(*W.values())
+
+    # bygg indeksmengder (m,s)
+    idx_ms, idx_mw = tree.build_index_sets(U=U, V_all=V_all, W_all=W_all, M_u=M_u, M_v=M_v, M_w=M_w, M=M)
+
+
+    # --- PARAMETERS ---
 
     P = utils.build_price_parameter(scenario_tree)
     Q = utils.build_production_capacity(scenario_tree)
@@ -55,53 +61,22 @@ def run_model(data_path="./input_data.csv", evaluate_deterministic_policy=False,
     P_MAX_EAM_down = 0    # maks pris for EAM down
 
 
-    # ------- bygg indeksmengder (m,s) -------
-
-    idx_ms = []
-
-    # stage 2: (CM_up/CM_down, u)
-    for u in U:
-        for m in M_u:
-            idx_ms.append((m, u))
-
-    # stage 3: (DA, v)
-    for v in V_all:
-        for m in M_v:
-            idx_ms.append((m, v))
-
-    # stage 4: (EAM_up/EAM_down, w)
-    for w in W_all:
-        for m in M_w:
-            idx_ms.append((m, w))
-
-    # til d_{mw} skal vi bare ha (m,w) med m i M_w
-    idx_mw = []
-    for w in W_all:
-        for m in M:
-            idx_mw.append((m, w))
-
-
-
     # --- VARIABLES ---
 
     # x_ms: bid quantity
     x = model.addVars(idx_ms, lb=0.0, name="x")
-
     # r_ms: bid price
     r = model.addVars(idx_ms, lb=0, name="r")
-
     # δ_ms: 1 hvis budet aktiveres
     delta = model.addVars(idx_ms, vtype=GRB.BINARY, name="delta")
-
     # a_ms: aktivert kvantum
     a = model.addVars(idx_ms, lb=0.0, name="a")
-
     # d_mw: avvik fra aktivert kvantum i terminale scenarier
     d = model.addVars(idx_mw, lb=0, name="d") 
 
 
-
     # --- OBJECTIVE FUNCTION ---
+
 
     nodes = scenario_tree["nodes"]  # fra build_scenario_tree
     # U, V, W: fra build_sets_from_tree(tree)
@@ -148,7 +123,7 @@ def run_model(data_path="./input_data.csv", evaluate_deterministic_policy=False,
     model.setObjective(obj, GRB.MAXIMIZE)
 
 
-    # --- CONSTRAINTS ---
+    # --- ACTIVATION CONSTRAINTS ---
 
 
     # Aktiveringsgrenser (for alle gyldige (m,s))
@@ -245,6 +220,8 @@ def run_model(data_path="./input_data.csv", evaluate_deterministic_policy=False,
                 )
 
 
+    # --- MARKET CONSTRAINTS ---
+
     # EAM down-regulation cannot exceed the activated day-ahead quantity without incurring a deviation
     for v in V_all:
         for w in W[v]:
@@ -301,11 +278,9 @@ def run_model(data_path="./input_data.csv", evaluate_deterministic_policy=False,
         )
 
 
-
-
     # --- EVALUATE DETERMINISTIC POLICY ---
     if evaluate_deterministic_policy:
-        with open(policy_file, "r") as f:
+        with open(det_policy_file, "r") as f:
             det_policy = json.load(f)
 
         # FIKS x,r TIL DEN DETERMINISTISKE POLICYEN
@@ -320,23 +295,21 @@ def run_model(data_path="./input_data.csv", evaluate_deterministic_policy=False,
         # Merk: non-anticipativity er fortsatt gyldig, men nå redundant,
         # siden alle x/r allerede er satt like på tvers av scenarier.
 
+
+    # --- OPTIMIZE MODEL ---
     model.optimize()
 
+    # --- PRINT RESULTS ---
     if verbose:
         if evaluate_deterministic_policy:
-            utils.print_deterministic_policy_results(model),
+            utils.print_results_deterministic_policy(model, x, a, r, delta, d, U, V, W, M_u, M_v, M_w)
         else:
-            utils.print_results(model, x, r, a, delta, d,
-                          U, V, W, V_all, W_all,
-                          M_u, M_v, M_w)
+            utils.print_results(model, x, r, a, delta, d, U, V, W, M_u, M_v, M_w)
+
 
     return model, x, r, a, delta, d
 
 
-
-
-# --- OPTIMIZE MODEL ---
-model, x, r, a, delta, d = run_model()
 
 
 
