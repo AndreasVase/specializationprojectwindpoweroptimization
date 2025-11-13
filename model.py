@@ -22,6 +22,8 @@ def run_model(data_path, det_policy_file, evaluate_deterministic_policy=False, v
 
     # Bygg treet
     scenario_tree = tree.build_scenario_tree(data_path)
+    # Lagre treet i modellen for tilgang
+    model._scenario_tree = scenario_tree
 
     # Bygg sett fra treet
     U, V, W, S = tree.build_sets_from_tree(scenario_tree)
@@ -283,17 +285,14 @@ def run_model(data_path, det_policy_file, evaluate_deterministic_policy=False, v
         with open(det_policy_file, "r") as f:
             det_policy = json.load(f)
 
-        # FIKS x,r TIL DEN DETERMINISTISKE POLICYEN
-        for m in det_policy:
+        # FIKS x,r (CM) TIL DEN DETERMINISTISKE POLICYEN
+        for m in det_policy if m in M_u else []:
             for s in S:
                 if (m, s) in x:  # sjekk at paret finnes
                     model.addConstr(x[m, s] == det_policy[m]["x"],
                                     name=f"fix_x_{m}_{s}")
                     model.addConstr(r[m, s] == det_policy[m]["r"],
                                     name=f"fix_r_{m}_{s}")
-
-        # Merk: non-anticipativity er fortsatt gyldig, men nå redundant,
-        # siden alle x/r allerede er satt like på tvers av scenarier.
 
 
     # --- OPTIMIZE MODEL ---
@@ -307,7 +306,7 @@ def run_model(data_path, det_policy_file, evaluate_deterministic_policy=False, v
             utils.print_results(model, x, r, a, delta, d, U, V, W, M_u, M_v, M_w)
 
 
-    return model, x, r, a, delta, d
+    return model, x, r, a, delta, d, U, V, W, M_u, M_v, M_w
 
 
 
