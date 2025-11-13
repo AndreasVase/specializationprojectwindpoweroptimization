@@ -2,17 +2,17 @@ import itertools
 import gurobipy as gp
 from gurobipy import GRB
 import numpy as np
-from scenario_tree import build_scenario_tree
+from scenario_tree import build_scenario_tree, build_sets_from_tree
 
 model = gp.Model()
 
 # --- SETS ---
-I = [1, 2, 3]   # stages
+I = [1, 2, 3, 4]   # stages
 
-M1 = ["CM_up", "CM_down"]
-M2 = ["DA"]
-M3 = ["EAM_up", "EAM_down"]
-M  = M1 + M2 + M3
+M_u = ["CM_up", "CM_down"]
+M_v = ["DA"]
+M_w = ["EAM_up", "EAM_down"]
+M  = M_u + M_v + M_w
 
 
 # --- Input data ---
@@ -23,6 +23,16 @@ EAM_up     = [4.5, 6.5]
 EAM_down   = [3.5, 5.0]
 wind_speed = [8, 10, 12]
 
+# kost per MW avvik for hvert produkt m
+C_data = {
+    "CM_up":   10.0,   # eksempelverdi [€/MW]
+    "CM_down": 10.0,
+    "DA":      10.0,
+    "EAM_up":  30.0,
+    "EAM_down": 30.0,
+}
+
+
 # --- Bygg treet ---
 scenario_tree = build_scenario_tree(
     CM_up=CM_up,
@@ -32,112 +42,174 @@ scenario_tree = build_scenario_tree(
     EAM_down=EAM_down,
     wind_speed=wind_speed
 )
-# --- Hent ut noder per stadium ---
-S1_nodes, S2_nodes, S3_nodes = scenario_tree["stage1"], scenario_tree["stage2"], scenario_tree["stage3"]
 
 
-# --- PARAMETERS ---
-
-# 2) Gi scenariene ID-er (u_i, v_j, w_k) og lag oppslag
-U = {f"u{i}": n for i, n in enumerate(S1_nodes, 1)}
-V = {f"v{j}": n for j, n in enumerate(S2_nodes, 1)}
-W = {f"w{k}": n for k, n in enumerate(S3_nodes, 1)}
-
-# Praktiske lister
-U_ids, V_ids, W_ids = list(U.keys()), list(V.keys()), list(W.keys())
+# --- Bygg sett fra treet ---
+U, V, W, S = build_sets_from_tree(scenario_tree)
 
 
-# --- V(u): grupper v etter u som parent ---
-U_to_V = {uid: [] for uid in U_ids}
-for uid in U_ids:
-    u_node = U[uid]
-    Vu = [vid for vid, v_node in V.items() if v_node.parent is u_node]
-    U_to_V[uid] = Vu
+def build_price_parameter(tree):
+    """
+    Lager P_ms som dictionary:
+        P[(m, s)] = clearing price for product m in scenario s
+    """
 
+    nodes = tree["nodes"]
 
-# --- W(v): grupper w etter v som parent ---
-V_to_W = {vid: [] for vid in V_ids}
-for vid in V_ids:
-    v_node = V[vid]
-    Wv = [wid for wid, w_node in W.items() if w_node.parent is v_node]
-    V_to_W[vid] = Wv
+    P = {}  # (m, s) -> value
 
-U_to_W = {uid: list({wid for vid in U_to_V[uid] for wid in V_to_W[vid]}) for uid in U_ids}
+    for s, node in nodes.items():
 
+        # --- Stage 2: CM prices ---
+        if node.stage == 2:
+            if "CM_up" in node.info:
+                P[("CM_up", s)] = node.info["CM_up"]
+            if "CM_down" in node.info:
+                P[("CM_down", s)] = node.info["CM_down"]
 
-# 4) Parametre fra scenariotreet
-# R_ms: pris bare der det finnes i nodens prices
-R = {}
-for uid, node in U.items():
-    for m in M1:
-        R[(m, uid)] = node.prices[m]
-for vid, node in V.items():
-    for m in M2:
-        R[(m, vid)] = node.prices[m]
-for wid, node in W.items():
-    for m in M3:
-        R[(m, wid)] = node.prices[m]
+        # --- Stage 3: DA price ---
+        elif node.stage == 3:
+            if "DA" in node.info:
+                P[("DA", s)] = node.info["DA"]
 
-# Q_s: kapasitet per scenario (her: enkel mapping fra "wind" -> kapasitet)
-def q_from_wind(w):  # tilpass etter behov
-    return float(w)
-Q = {sid: q_from_wind(node.wind) for sid, node in {**U, **V, **W}.items()}
+        # --- Stage 4: EAM + wind ---
+        elif node.stage == 4:
+            if "EAM_up" in node.info:
+                P[("EAM_up", s)] = node.info["EAM_up"]
+            if "EAM_down" in node.info:
+                P[("EAM_down", s)] = node.info["EAM_down"]
 
+    return P
 
-# Scenario probabilities, all scenarios equally likely
-pi_u = 1/len(U_ids) # 1/12
-pi_v = 1/len(V_ids) # 1/72
-pi_w = 1/len(W_ids) # 1/864
+def build_production_capacity(tree):
+    """
+    Lager Q_w for alle terminale scenarier w i stage 4.
+    Q_w baseres på node.info["wind_speed"].
 
-# Avvikskostnad per marked
-C_dev = {
-    "CM_up":  10.0, 
-    "CM_down": 10.0,
-    "DA":     10.0,
-    "EAM_up": 30.0,
-    "EAM_down": 30.0,
-}
+    Returnerer:
+        Q[w] = production capacity in scenario w
+    """
+
+    nodes = tree["nodes"]
+    Q = {}
+
+    for w, node in nodes.items():
+        if node.stage == 4:
+            wind = node.info["wind_speed"]
+
+            # HER legges det inn en mer realistisk produksjonsfunksjon
+            prod_cap = wind  # enkel mapping som eksempel
+            Q[w] = prod_cap
+
+    return Q
+
+P = build_price_parameter(scenario_tree)
+Q = build_production_capacity(scenario_tree)
+C = {m: C_data[m] for m in M}
 
 BIGM = 1000
 
 epsilon = 1e-3
 
-P_MAX_EAM_up   = 1  # maks pris for EAM up
-P_MAX_EAM_down = 1    # maks pris for EAM down
+P_MAX_EAM_up   = 0  # maks pris for EAM up
+P_MAX_EAM_down = 0    # maks pris for EAM down
+
+# flate mengder for v- og w-noder:
+V_all = set().union(*V.values())
+W_all = set().union(*W.values())
+
+
+# ------- bygg indeksmengder (m,s) -------
+
+idx_ms = []
+
+# stage 2: (CM_up/CM_down, u)
+for u in U:
+    for m in M_u:
+        idx_ms.append((m, u))
+
+# stage 3: (DA, v)
+for v in V_all:
+    for m in M_v:
+        idx_ms.append((m, v))
+
+# stage 4: (EAM_up/EAM_down, w)
+for w in W_all:
+    for m in M_w:
+        idx_ms.append((m, w))
+
+# til d_{mw} skal vi bare ha (m,w) med m i M_w
+idx_mw = []
+for w in W_all:
+    for m in M:
+        idx_mw.append((m, w))
+
+
 
 # --- VARIABLES ---
 
-# 5) Gyldige indekser (m, s) – kun der R_ms er definert
-MS_pairs = list(R.keys())  # dette gir (m,s) for riktige stadier
+# x_ms: bid quantity
+x = model.addVars(idx_ms, lb=0.0, name="x")
 
-DW_pairs = [(m, w) for w in W_ids for m in M]
+# r_ms: bid price
+r = model.addVars(idx_ms, lb=0, name="r")
 
+# δ_ms: 1 hvis budet aktiveres
+delta = model.addVars(idx_ms, vtype=GRB.BINARY, name="delta")
 
-# Variabler 
+# a_ms: aktivert kvantum
+a = model.addVars(idx_ms, lb=0.0, name="a")
 
-x = model.addVars(MS_pairs, name="x", lb=0.0)                     # bid qty
-p = model.addVars(MS_pairs, name="p", lb=0.0)                     # bid price (lb ev. <0 i DA)
-a = model.addVars(MS_pairs, name="a", lb=0.0)                     # activated qty
-d = model.addVars(DW_pairs, name="d", lb=0.0)                     # deviation
-delta = model.addVars(MS_pairs, vtype=GRB.BINARY, name="delta")   # activation flag
+# d_mw: avvik fra aktivert kvantum i terminale scenarier
+d = model.addVars(idx_mw, lb=0, name="d") 
+
 
 
 # --- OBJECTIVE FUNCTION ---
 
-# Objektiv: forventet verdi (inntekt – avvikskost)
-# Vi vekter hvert (m,s)-ledd med scenarioets joint-prob pi[s]
+nodes = scenario_tree["nodes"]  # fra build_scenario_tree
+# U, V, W: fra build_sets_from_tree(tree)
+#   U: set of u-noder
+#   V: dict u -> set of v-noder
+#   W: dict v -> set of w-noder
 
-# Inntekter i hvert stadium
-obj  = gp.quicksum(pi_u * R[(m, u)] * a[(m, u)]
-                   for (m, u) in MS_pairs if m in M1)
+obj = gp.LinExpr()
 
-obj += gp.quicksum(pi_v * R[(m, v)] * a[(m, v)]
-                   for (m, v) in MS_pairs if m in M2)
+for u in U:
+    pi_u = nodes[u].cond_prob   # π_u
 
-# Stadium 3: inntekt minus avvikskost
-obj += gp.quicksum(pi_w * R[(m, w)] * a[(m, w)] for (m, w) in MS_pairs if m in M3)
+    # Inneste ledd for gitt u
+    term_u = gp.quicksum(
+        P[ (m, u) ] * a[m, u] for m in M_u
+    )
 
-obj -= gp.quicksum(pi_w * C_dev[m] * d[(m, w)] for (m, w) in DW_pairs if m in M)
+    # Stage 3
+    for v in V[u]:
+        pi_v_u = nodes[v].cond_prob   # π_{v|u}
+
+        term_v = gp.quicksum(
+            P[ (m, v) ] * a[m, v] for m in M_v
+        )
+
+        # Stage 4
+        for w in W[v]:
+            pi_w_v = nodes[w].cond_prob   # π_{w|v}
+
+            revenue_w = gp.quicksum(
+                P[ (m, w) ] * a[m, w] for m in M_w
+            )
+
+            penalty_w = gp.quicksum(
+                C[m] * d[m, w] for m in M
+            )
+
+            term_v += pi_w_v * (revenue_w - penalty_w)
+
+        term_u += pi_v_u * term_v
+
+    obj += pi_u * term_u
+
+model.setObjective(obj, GRB.MAXIMIZE)
                    
 
 
@@ -146,100 +218,238 @@ obj -= gp.quicksum(pi_w * C_dev[m] * d[(m, w)] for (m, w) in DW_pairs if m in M)
 
 
 # Aktiveringsgrenser (for alle gyldige (m,s))
-model.addConstrs((a[(m, s)] <= x[(m, s)]                    for (m, s) in MS_pairs), name="act_le_bid")
-model.addConstrs((a[(m, s)] <= BIGM * delta[(m, s)]         for (m, s) in MS_pairs), name="act_if_delta")
-model.addConstrs((a[(m, s)] >= x[(m, s)] - BIGM * (1 - delta[(m, s)])         for (m, s) in MS_pairs), name="act_ge_bid_if_delta")
+for (m, s) in idx_ms:
+    # 1) a_ms <= x_ms
+    model.addConstr(
+        a[m, s] <= x[m, s],
+        name=f"act_le_bid[{m},{s}]"
+    )
+
+    # 2) a_ms <= M * delta_ms
+    model.addConstr(
+        a[m, s] <= BIGM * delta[m, s],
+        name=f"act_le_Mdelta[{m},{s}]"
+    )
+
+    # 3) a_ms >= x_ms - (1 - M * delta_ms)
+    model.addConstr(
+        a[m, s] >= x[m, s] - BIGM * (1 - delta[m, s]),
+        name=f"act_ge_bid_bigM[{m},{s}]"
+    )
+
 
 # Set aktiveringsvariabel delta
-model.addConstrs((p[(m, s)] - R[(m, s)] <= BIGM * (1 - delta[(m, s)]) for (m, s) in MS_pairs), name="set_activation_1")
-model.addConstrs((R[(m, s)] - p[(m, s)] <= BIGM * delta[(m, s)] - epsilon for (m, s) in MS_pairs), name="set_activation_2")
+for (m, s) in idx_ms:   
+
+    # r_ms - P_ms <= M (1 - delta_ms)
+    model.addConstr(
+        r[m, s] - P[(m, s)] <= BIGM * (1 - delta[m, s]),
+        name=f"act_upper[{m},{s}]"
+    )
+
+    # P_ms - r_ms <= M delta_ms - eps
+    model.addConstr(
+        P[(m, s)] - r[m, s] <= BIGM * delta[m, s] - epsilon,
+        name=f"act_lower[{m},{s}]"
+    )
 
 
 
 # --- NON-ANTICIPATIVITY CONSTRAINTS ---
-for mkt in M1:
-    base = U_ids[0]
-    for u in U_ids[1:]:
-        model.addConstr(x[(mkt, u)] == x[(mkt, base)], name=f"NA_x_u_{mkt}_{u}")
-        model.addConstr(p[(mkt, u)] == p[(mkt, base)], name=f"NA_p_u_{mkt}_{u}")
 
-for mkt in M2:
-    for uid in U_ids:
-        Vu = U_to_V[uid]
-        if len(Vu) > 1:
-            base = Vu[0]
-            for v in Vu[1:]:
-                model.addConstr(x[(mkt, v)] == x[(mkt, base)], name=f"NA_x_v_{mkt}_{uid}_{v}")
-                model.addConstr(p[(mkt, v)] == p[(mkt, base)], name=f"NA_p_v_{mkt}_{uid}_{v}")
+# Stage 2 non-anticipativity
+u0 = next(iter(U))             # referansenode
+for m in M_u:
+    for u in U:
+        if u != u0:
+            model.addConstr(x[m, u] == x[m, u0], name=f"NA_x_stage2[{m},{u}]")
+            model.addConstr(r[m, u] == r[m, u0], name=f"NA_r_stage2[{m},{u}]")
 
-#for mkt in M3:
-#    for vid in V_ids:
-#        Wv = V_to_W[vid]
-#        if len(Wv) > 1:
-#            base = Wv[0]
-#            for w in Wv[1:]:
-#                model.addConstr(x[(mkt, w)] == x[(mkt, base)], name=f"NA_x_v_{mkt}_{uid}_{w}")
-#                model.addConstr(p[(mkt, w)] == p[(mkt, base)], name=f"NA_p_v_{mkt}_{uid}_{w}")
+
+# Stage 3 non-anticipativity
+for u in U:
+    V_u = V[u]                # alle v-noder som følger u
+    v0 = next(iter(V_u))      # referanse-node for v-noder med denne historien
+
+    for m in M_v:
+        for v in V_u:
+            if v == v0:
+                continue
+
+            # x_{m,v} = x_{m,v0}
+            model.addConstr(
+                x[m, v] == x[m, v0],
+                name=f"NA_x_stage3[{m},{u},{v}]"
+            )
+
+            # r_{m,v} = r_{m,v0}
+            model.addConstr(
+                r[m, v] == r[m, v0],
+                name=f"NA_r_stage3[{m},{u},{v}]"
+            )
+
+# Stage 4 non-anticipativity
+for v in V_all:
+    W_v = W[v]                 # alle w-noder som følger v
+    w0 = next(iter(W_v))       # referanse-node for denne historien
+
+    for m in M_w:
+        for w in W_v:
+            if w == w0:
+                continue
+
+            # x_{m,w} = x_{m,w0}
+            model.addConstr(
+                x[m, w] == x[m, w0],
+                name=f"NA_x_stage4[{m},{v},{w}]"
+            )
+
+            # r_{m,w} = r_{m,w0}
+            model.addConstr(
+                r[m, w] == r[m, w0],
+                name=f"NA_r_stage4[{m},{v},{w}]"
+            )
 
 
 # EAM down-regulation cannot exceed the activated day-ahead quantity without incurring a deviation
-for vid in V_ids:
-    for wid in V_to_W[vid]:
+for v in V_all:
+    for w in W[v]:
         model.addConstr(
-            a[("EAM_down", wid)] - d[("EAM_down", wid)] <= a[("DA", vid)],
-            name=f"EAMdown_vs_DA_{vid}_{wid}"
+            a["EAM_down", w] - d["EAM_down", w] <= a["DA", v],
+            name=f"link_EAM_DA[{v},{w}]"
         )
 
 
 # any up or down regulation committed in market 1 must be followed by at least the same amount of up or down bidding in stage 3
-for uid in U_ids:
-    for wid in U_to_W[uid]:
+# Bygg W(u) fra V(u) og W(v). W(u) er mengden av alle w-noder som følger u
+W_u = {u: set().union(*(W[v] for v in V[u])) for u in U}
+
+for u in U:
+    for w in W_u[u]:
+        # x_{3↑,w} + d_{1↑,w} >= a_{1↑,u}
         model.addConstr(
-            x[("EAM_up",   wid)] + d[("CM_up",   wid)] >= a[("CM_up",   uid)],
-            name=f"CMup_to_EAMup_{uid}_{wid}"
+            x["EAM_up",  w] + d["CM_up",  w] >= a["CM_up",  u],
+            name=f"cov_CMup[{u},{w}]"
         )
+
+        # x_{3↓,w} + d_{1↓,w} >= a_{1↓,u}
         model.addConstr(
-            x[("EAM_down", wid)] + d[("CM_down", wid)] >= a[("CM_down", uid)],
-            name=f"CMdown_to_EAMdown_{uid}_{wid}"
+            x["EAM_down", w] + d["CM_down", w] >= a["CM_down", u],
+            name=f"cov_CMdown[{u},{w}]"
         )
 
 
 # The total activated quantity in the market products 2 and 3↑ does not exceed the available production capacity in each scenario.
-for vid in V_ids:
-    for wid in V_to_W[vid]:
-        # market 2 (DA)
+for v in V_all:
+    for w in W[v]:
+        # a_2v <= Q_w + d_2w
         model.addConstr(
-            a[("DA", vid)] <= Q[wid] + d[("DA", wid)],
-            name=f"cap_DA_{vid}_{wid}"
+            a["DA", v] <= Q[w] + d["DA", w],
+            name=f"cap_DA[{v},{w}]"
         )
-        # market 3 up (EAM↑)
+
+        # a_3↑w <= Q_w - a_2v + d_3↑w
         model.addConstr(
-            a[("EAM_up", wid)] <= Q[wid] - a[("DA", vid)] + d[("EAM_up", wid)],
-            name=f"cap_EAMup_{vid}_{wid}"
+            a["EAM_up", w] <= Q[w] - a["DA", v] + d["EAM_up", w],
+            name=f"cap_EAMup[{v},{w}]"
         )
 
 
 # Ensuring that a realistic price is bid in the EAM markets
-for wid in W_ids:
+for w in W_all:
     model.addConstr(
-        p[("EAM_up", wid)] <= P_MAX_EAM_up,
-        name=f"min_price_EAMup_{wid}"
+        r["EAM_up", w] <= P_MAX_EAM_up,
+        name=f"max_price_EAMup_{w}"
     )
     model.addConstr(
-        p[("EAM_down", wid)] <= P_MAX_EAM_down,
-        name=f"max_price_EAMdown_{wid}"
+        r["EAM_down", w] <= P_MAX_EAM_down,
+        name=f"max_price_EAMdown_{w}"
     )
 
 
 
-
-model.setObjective(obj, gp.GRB.MAXIMIZE)
+# --- OPTIMIZE MODEL ---
 model.optimize()
 
-# Hent ut litt resultat
-if model.status == GRB.OPTIMAL:
-    print(f"Optimal objective: {model.objVal:.4f}")
-    # eksempel: skriv noen løsninger
-    for (mkt, s) in MS_pairs[:1000]:
-        if a[(mkt, s)].X > 1e-6:
-            print(f"{mkt}@{s}: a={a[(mkt,s)].X:.3f}, x={x[(mkt,s)].X:.3f}, p={p[(mkt,s)].X:.3f}, δ={int(delta[(mkt,s)].X)}")
+
+def print_results(model, x, r, a, delta, d, U, V_all, W_all, M1, M2, M3):
+
+    if model.Status != GRB.OPTIMAL:
+        print("Model not solved to optimality. Status:", model.Status)
+        return
+
+
+    print("\n======================")
+    print("   OPTIMAL SOLUTION")
+    print("======================\n")
+
+    # Objective value
+    print(f"Objective value: {model.ObjVal:,.4f}\n")
+
+    # ------------------------
+    # Helper for clean output
+    # ------------------------
+    def print_nonzero(title, var_dict):
+        print(f"--- {title} ---")
+        found = False
+        for key, var in var_dict.items():
+            if abs(var.X) > 1e-8:
+                print(f"{key}: {var.X:,.4f}")
+                found = True
+        if not found:
+            print("(all zero)")
+        print()
+
+    # ------------------------
+    # Print by variable group
+    # ------------------------
+
+    # X (quantities)
+    print_nonzero("Bid quantities x[m,s]", x)
+
+    # R (prices)
+    print_nonzero("Bid prices r[m,s]", r)
+
+    # A (activated quantities)
+    print_nonzero("Activated a[m,s]", a)
+
+    # Delta (binary acceptance indicators)
+    print("--- Binary Acceptances δ[m,s] ---")
+    for key, var in delta.items():
+        print(f"{key}: {int(round(var.X))}")
+    print()
+
+    # D (deviations only in terminal nodes)
+    print_nonzero("Deviation d[m,w]", d)
+
+    # ------------------------
+    # Scenario-wise aggregated output
+    # ------------------------
+    print("============== SCENARIO OUTPUT ==============\n")
+
+    print("--- Stage 2 (CM): u ∈ U ---")
+    for u in U:
+        for m in M1:
+            print(f"{m} in {u}: x={x[m,u].X:.3f}, a={a[m,u].X:.3f}, r={r[m,u].X:.3f}, δ={int(delta[m,u].X)}")
+        print()
+
+    print("--- Stage 3 (DA): v ∈ V ---")
+    for v in V_all:
+        for m in M2:
+            print(f"{m} in {v}: x={x[m,v].X:.3f}, a={a[m,v].X:.3f}, r={r[m,v].X:.3f}, δ={int(delta[m,v].X)}")
+        print()
+
+    print("--- Stage 4 (EAM): w ∈ W ---")
+    for w in W_all:
+        for m in M3:
+            print(f"{m} in {w}: x={x[m,w].X:.3f}, a={a[m,w].X:.3f}, r={r[m,w].X:.3f}, δ={int(delta[m,w].X)}, d={d[m,w].X:.3f}")
+        print()
+
+    print("=============================================")
+    print("            END OF RESULTS")
+    print("=============================================\n")
+
+
+print_results(model, x, r, a, delta, d,
+              U, V_all, W_all,
+              M_u, M_v, M_w)
