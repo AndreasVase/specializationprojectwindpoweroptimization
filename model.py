@@ -302,11 +302,11 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
 
     if only_da_and_eam:
         for m in M_u:
-            for s in S:
-                if (m, s) in x:  # sjekk at paret finnes
-                    model.addConstr(x[m, s] == 0,
+            for u in U:
+                if (m, u) in x:  # sjekk at paret finnes
+                    model.addConstr(x[m, u] == 0,
                                     name=f"fix_x_zero_{m}_{s}")
-                    model.addConstr(r[m, s] == 0,
+                    model.addConstr(r[m, u] == 0,
                                     name=f"fix_r_zero_{m}_{s}")
     
 

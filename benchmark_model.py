@@ -69,7 +69,7 @@ def run_benchmark_model(path, policy_filename):
     d = model_det.addVars(M, lb=0.0, name="d")
 
     # --------------------------
-    # 4) OBJEKTFUNKSJON
+    # OBJEKTIVFUNKSJON
     # --------------------------
 
     # Maksimer forventet inntekt - forventet straff for avvik
@@ -79,7 +79,7 @@ def run_benchmark_model(path, policy_filename):
     model_det.setObjective(obj, GRB.MAXIMIZE)
 
     # --------------------------
-    # 5) KONSTRINSER
+    # RESTRIKSJONER
     # --------------------------
 
     # Aktiveringsgrenser (a mot x og delta)
@@ -151,13 +151,13 @@ def run_benchmark_model(path, policy_filename):
     )
 
     # --------------------------
-    # 6) LØS MODELLEN
+    # LØS MODELLEN
     # --------------------------
 
     model_det.optimize()
 
     # --------------------------
-    # 7) LAGRE POLICY TIL FIL
+    # LAGRE POLICY TIL FIL
     # --------------------------
 
     det_policy = {
