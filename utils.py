@@ -1,4 +1,6 @@
 from gurobipy import GRB
+import pandas as pd
+import numpy as np
 
 def wind_speed_to_production_capacity(wind_speed):
     prod_cap = wind_speed  # enkel mapping som eksempel
@@ -206,3 +208,87 @@ def print_results_deterministic_policy(
     print("\n======================================")
     print("        END OF EVP DEBUG REPORT")
     print("======================================\n")
+
+
+
+# ============================================================
+# Hjelpefunksjoner for plotting
+# ============================================================
+
+
+def compute_expected_volumes(model, a, U, V, W, M_u, M_v, M_w, policy_label):
+    """
+    Beregner forventet aktivert volum E[a] for hver markedsprodukt,
+    gitt en modell og tilhørende a-variabler.
+
+    Returnerer en DataFrame med kolonner:
+    - Policy
+    - Market product
+    - Stage
+    - Expected activated volume [MW]
+    """
+
+    scenario_tree = model._scenario_tree
+    nodes = scenario_tree["nodes"]
+
+    # ---------- Hjelpefunksjoner for sannsynligheter ----------
+    def pi_u(u):
+        # betinget sannsynlighet for u (gitt roten)
+        return nodes[u].cond_prob
+
+    def pi_v_given_u(v):
+        return nodes[v].cond_prob
+
+    def pi_w_given_v(w):
+        return nodes[w].cond_prob
+
+    exp_vol = {}
+
+    # Stage 2: CM
+    for m in M_u:
+        val = 0.0
+        for u in U:
+            key = (m, u)
+            if key in a:
+                val += pi_u(u) * a[key].X
+        exp_vol[m] = val
+
+    # Stage 3: DA
+    for m in M_v:   # typisk bare "DA"
+        val = 0.0
+        for u in U:
+            for v in V[u]:
+                key = (m, v)
+                if key in a:
+                    val += pi_u(u) * pi_v_given_u(v) * a[key].X
+        exp_vol[m] = val
+
+    # Stage 4: EAM
+    for m in M_w:
+        val = 0.0
+        for u in U:
+            for v in V[u]:
+                for w in W[v]:
+                    key = (m, w)
+                    if key in a:
+                        val += pi_u(u) * pi_v_given_u(v) * pi_w_given_v(w) * a[key].X
+        exp_vol[m] = val
+
+    # ---------- Bygg DataFrame ----------
+    rows = []
+    for m, val in exp_vol.items():
+        if m in M_u:
+            stage = "Stage 2 – CM"
+        elif m in M_v:
+            stage = "Stage 3 – DA"
+        else:
+            stage = "Stage 4 – EAM"
+
+        rows.append({
+            "Policy": policy_label,
+            "Market product": m,
+            "Stage": stage,
+            "Expected activated volume [MW]": val
+        })
+
+    return pd.DataFrame(rows)

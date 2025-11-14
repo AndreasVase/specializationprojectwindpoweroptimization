@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import pandas as pd
+import utils
 
 
 
@@ -10,12 +11,16 @@ import pandas as pd
 #  CM-policy: stokastisk vs deterministisk
 # ============================================================
 
-def plot_objective_comparison(model, det_model, save_path="obj_comparison.png"):
+def plot_model_type_objective_comparison(output_dict, det_output_dict, save_path="obj_comparison.png"):
     """
     Sammenligner objektivverdien mellom:
     - Fullt stokastisk løsning
     - Stokastisk modell med CM låst til deterministisk policy
     """
+    model = output_dict["model"]
+    det_model = det_output_dict["model"]
+
+
     obj_stoch = model.ObjVal
     obj_detcm = det_model.ObjVal
     diff = obj_stoch - obj_detcm
@@ -58,104 +63,133 @@ def plot_objective_comparison(model, det_model, save_path="obj_comparison.png"):
     plt.close()
 
 
-def plot_cm_policy_comparison(model,
-                              x, a, r, delta,
-                              det_model,
-                              det_x, det_a, det_r, det_delta,
-                              U, M_u,
-                              save_path="cm_policy_comparison.png"):
-    """
-    Sammenligner CM-beslutningen (x, a, r) mellom:
-    - Fullt stokastisk løsning
-    - Stokastisk modell med CM låst til deterministisk policy
 
-    Vi bruker non-anticipativity: samme CM-bid for alle u,
-    så vi velger én representativ u0.
+def plot_model_type_policy_comparison(output_dict, det_output_dict, save_path):
+    """
+    Plotter to sidestilte figurer:
+      - Stochastic optimal
+      - Stochastic w/ deterministic CM
+
+    For CM_up og CM_down vises:
+      - Bid quantity x  [MW]
+      - Activated quantity a [MW]
+      - Bid price r     [NOK/MWh]
+
+    x og a bruker venstre akse.
+    r bruker høyre akse.
     """
 
-    # Representativ stage-2 node
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import seaborn as sns
+
+    # ---- data ----
+    x = output_dict["x"]
+    a = output_dict["a"]
+    r = output_dict["r"]
+
+    det_x = det_output_dict["x"]
+    det_a = det_output_dict["a"]
+    det_r = det_output_dict["r"]
+
+    U = output_dict["U"]
+    M_u = output_dict["M_u"]
+
     u0 = next(iter(U))
+    products = list(M_u)
+    idx = np.arange(len(products))
+    bar_width = 0.25
 
-    rows = []
-    for m in M_u:
-        # Stokastisk optimal
-        rows.append({
-            "Product": m,
-            "Variable": "Bid quantity x",
-            "Policy": "Stochastic optimal",
-            "Value": float(x[m, u0].X)
-        })
-        rows.append({
-            "Product": m,
-            "Variable": "Activated quantity a",
-            "Policy": "Stochastic optimal",
-            "Value": float(a[m, u0].X)
-        })
-        rows.append({
-            "Product": m,
-            "Variable": "Bid price r",
-            "Policy": "Stochastic optimal",
-            "Value": float(r[m, u0].X)
-        })
+    # Fargepalett (colorblind-friendly)
+    colors = sns.color_palette("colorblind", 3)
+    c_x, c_a, c_r = colors
 
-        # Stokastisk modell med deterministisk CM-policy
-        rows.append({
-            "Product": m,
-            "Variable": "Bid quantity x",
-            "Policy": "Stochastic w/ deterministic CM",
-            "Value": float(det_x[m, u0].X)
-        })
-        rows.append({
-            "Product": m,
-            "Variable": "Activated quantity a",
-            "Policy": "Stochastic w/ deterministic CM",
-            "Value": float(det_a[m, u0].X)
-        })
-        rows.append({
-            "Product": m,
-            "Variable": "Bid price r",
-            "Policy": "Stochastic w/ deterministic CM",
-            "Value": float(det_r[m, u0].X)
-        })
+    def extract_vals(xv, av, rv):
+        return (
+            [float(xv[m, u0].X) for m in products],
+            [float(av[m, u0].X) for m in products],
+            [float(rv[m, u0].X) for m in products],
+        )
 
-    df = pd.DataFrame(rows)
+    stoch_x, stoch_a, stoch_r = extract_vals(x, a, r)
+    det_x_vals, det_a_vals, det_r_vals = extract_vals(det_x, det_a, det_r)
 
-    # Pent facet-plot: én kolonne per variabeltype (x, a, r)
-    g = sns.catplot(
-        data=df,
-        x="Product",
-        y="Value",
-        hue="Policy",
-        col="Variable",
-        kind="bar",
-        sharey=False,
-        height=4,
-        aspect=0.9
+    # Felles maks for venstre akse
+    all_qty = stoch_x + stoch_a + det_x_vals + det_a_vals
+    max_qty = 1.1 * max(all_qty) if max(all_qty) > 0 else 1.0
+
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
+
+    def draw_subplot(ax, qty_x, qty_a, price_r, title):
+        # Venstre akse: x og a
+        ax.bar(idx - bar_width, qty_x, width=bar_width, color=c_x,
+               label="Bid quantity x [MW]", edgecolor="black")
+        ax.bar(idx, qty_a, width=bar_width, color=c_a,
+               label="Activated quantity a [MW]", edgecolor="black")
+
+        ax.set_ylabel("Quantity [MW]", fontsize=10)
+        ax.set_ylim(0, max_qty)
+        ax.set_xticks(idx)
+        ax.set_xticklabels(products, fontsize=9)
+        ax.set_title(title, fontsize=11)
+        ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.7)
+
+        # Høyre akse: r
+        ax2 = ax.twinx()
+        ax2.bar(idx + bar_width, price_r, width=bar_width,
+                color=c_r, edgecolor="black", alpha=0.85,
+                label="Bid price r [NOK/MWh]")
+        ax2.set_ylabel("Price [NOK/MWh]", fontsize=10)
+
+        return ax, ax2
+
+    # Venstre plott – full stochastic
+    ax_left, ax2_left = draw_subplot(
+        axes[0], stoch_x, stoch_a, stoch_r,
+        title="Stochastic optimal CM bids"
     )
 
-    g.figure.subplots_adjust(top=0.8)
-    g.figure.suptitle("CM bidding decision: stochastic vs deterministic CM policy")
+    # Høyre plott – stochastic + deterministic CM
+    ax_right, ax2_right = draw_subplot(
+        axes[1], det_x_vals, det_a_vals, det_r_vals,
+        title="Stochastic model w/ deterministic CM"
+    )
 
-    for ax in g.axes.flat:
-        ax.set_xlabel("")
-        ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.7)
+    # --- Legend flyttes under tittelen ---
+    handles1, labels1 = ax_left.get_legend_handles_labels()
+    handles2, labels2 = ax2_left.get_legend_handles_labels()
+
+    fig.legend(handles1 + handles2, labels1 + labels2,
+               loc="upper center",
+               bbox_to_anchor=(0.5, 0.95),
+               ncol=3,
+               frameon=False,
+               fontsize=9)
+
+    # --- Layout ---
+    fig.suptitle("Capacity market bidding decision per product",
+                 fontsize=13, y=1.02)
+
+    fig.tight_layout(rect=[0, 0, 1, 0.90])
 
     plt.savefig(save_path, dpi=300, bbox_inches="tight")
     plt.close()
 
-
 # ============================================================
-#  Objektivverdi: Full modell vs kun DA og EAM
+#  Objektivverdi: CM+DA+EAM vs kun DA og EAM
 # ============================================================
 
-def plot_objective_comparison_full_vs_da_eam(model,
-                                             da_eam_model,
+def plot_market_attendance_objective_comparison(output_dict,
+                                             da_eam_output_dict,
                                              save_path="fig_obj_full_vs_da_eam.png"):
     """
     Sammenligner objektivverdi mellom:
     - Full 3-markedsmodell (CM + DA + EAM)
     - Modell med kun DA og EAM inkludert
     """
+    model = output_dict["model"]
+    da_eam_model = da_eam_output_dict["model"]
+
     obj_full = model.ObjVal
     obj_da_eam = da_eam_model.ObjVal
     diff = obj_full - obj_da_eam
@@ -202,14 +236,13 @@ def plot_objective_comparison_full_vs_da_eam(model,
 #  Budstrategi: Full modell vs kun DA og EAM
 # ============================================================
 
-# Hjelpefunksjon for å lage oppsummering av budstrategi
-def _summarize_policy(x, a, r, delta,
-                      U, V, W,
-                      M_u, M_v, M_w,
-                      model_label):
+def summarize_policy_x(x,
+                       U, V, W,
+                       M_u, M_v, M_w,
+                       model_label):
     """
-    Lager en rad per (produkt, variabeltype) med gjennomsnitt over relevante scenarier.
-    Brukes for å sammenligne budstrategi mellom to modeller.
+    Oppsummerer gjennomsnittlig budmengde x per produkt
+    for én modell (brukes til å sammenligne modeller).
     """
 
     rows = []
@@ -218,19 +251,9 @@ def _summarize_policy(x, a, r, delta,
     V_all = set().union(*V.values())
     W_all = set().union(*W.values())
 
-    # Mapping produkt -> marked
-    def market_of(m):
-        if m in M_u:
-            return "CM"
-        if m in M_v:
-            return "DA"
-        if m in M_w:
-            return "EAM"
-        return "Unknown"
-
-    # For hvert produkt: finn relevante scenarier og ta gjennomsnitt
+    # For hvert produkt: finn relevante scenarier og ta gjennomsnitt av x
     for m in (M_u + M_v + M_w):
-        # relevante noder for dette produktet
+
         if m in M_u:
             indices = [(m, u) for u in U if (m, u) in x]
         elif m in M_v:
@@ -239,59 +262,86 @@ def _summarize_policy(x, a, r, delta,
             indices = [(m, w) for w in W_all if (m, w) in x]
 
         if not indices:
-            # produktet er ikke med i denne modellen (f.eks. CM i DA+EAM-modell)
+            # Produktet finnes ikke i denne modellen (f.eks. CM i DA+EAM-modellen)
             continue
 
         x_vals = [x[key].X for key in indices]
-        r_vals = [r[key].X for key in indices]
-
         avg_x = float(np.mean(x_vals))
+
+        rows.append({
+            "Product": m,
+            "Model": model_label,
+            "Quantity": avg_x
+        })
+
+    return rows
+
+def summarize_policy_r(r,
+                       U, V, W,
+                       M_u, M_v, M_w,
+                       model_label):
+    """
+    Oppsummerer gjennomsnittlig budpris r per produkt
+    for én modell (brukes til å sammenligne modeller).
+    """
+
+    rows = []
+
+    # Hjelpe: full v- og w-mengde
+    V_all = set().union(*V.values())
+    W_all = set().union(*W.values())
+
+    # For hvert produkt: finn relevante scenarier og ta gjennomsnitt av r
+    for m in (M_u + M_v + M_w):
+
+        if m in M_u:
+            indices = [(m, u) for u in U if (m, u) in r]
+        elif m in M_v:
+            indices = [(m, v) for v in V_all if (m, v) in r]
+        else:  # EAM
+            indices = [(m, w) for w in W_all if (m, w) in r]
+
+        if not indices:
+            continue  # produkt finnes ikke i denne modellen
+
+        r_vals = [r[key].X for key in indices]
         avg_r = float(np.mean(r_vals))
 
-        market = market_of(m)
-
         rows.append({
-            "Market": market,
             "Product": m,
-            "Variable": "Bid quantity x",
             "Model": model_label,
-            "Value": avg_x
-        })
-        rows.append({
-            "Market": market,
-            "Product": m,
-            "Variable": "Bid price r",
-            "Model": model_label,
-            "Value": avg_r
+            "Price": avg_r
         })
 
     return rows
 
 
-def plot_bid_strategy_comparison_full_vs_da_eam(
-        x, a, r, delta,
-        da_eam_x, da_eam_a, da_eam_r, da_eam_delta,
-        U, V, W,
-        M_u, M_v, M_w,
-        save_path="fig_bid_strategy_full_vs_da_eam.png"):
+def plot_market_attendance_expected_x(output_dict, da_eam_output_dict, save_path):
     """
-    Sammenligner gjennomsnittlig budstrategi (x, a, r, δ) per produkt/marked mellom:
-    - Full 3-markedsmodell
-    - Modell med kun DA og EAM
+    Sammenligner gjennomsnittlig budmengde x per produkt mellom:
+    - Full modell: CM+DA+EAM
+    - Modell: DA+EAM
 
-    For CM-produktene vil kun den fulle modellen ha data;
-    DA og EAM vil vises for begge.
+    Figuren har én akse, med to søyler per produkt (én per modell).
     """
+    x = output_dict["x"]
+    da_eam_x = da_eam_output_dict["x"]
+    U = output_dict["U"]
+    V = output_dict["V"]
+    W = output_dict["W"]
+    M_u = output_dict["M_u"]
+    M_v = output_dict["M_v"]
+    M_w = output_dict["M_w"]
 
-    rows_full = _summarize_policy(
-        x, a, r, delta,
+    rows_full = summarize_policy_x(
+        x,
         U, V, W,
         M_u, M_v, M_w,
         model_label="CM+DA+EAM"
     )
 
-    rows_da_eam = _summarize_policy(
-        da_eam_x, da_eam_a, da_eam_r, da_eam_delta,
+    rows_da_eam = summarize_policy_x(
+        da_eam_x,
         U, V, W,
         M_u, M_v, M_w,
         model_label="DA+EAM"
@@ -299,38 +349,95 @@ def plot_bid_strategy_comparison_full_vs_da_eam(
 
     df = pd.DataFrame(rows_full + rows_da_eam)
 
-    # Sortering på en ryddig måte
+    # Ryddig rekkefølge på produktene
     product_order = M_u + M_v + M_w
-    variable_order = ["Bid quantity x", "Bid price r"]
+    df["Product"] = pd.Categorical(df["Product"],
+                                   categories=product_order,
+                                   ordered=True)
+    df["Model"] = pd.Categorical(df["Model"],
+                                 categories=["CM+DA+EAM", "DA+EAM"],
+                                 ordered=True)
 
-    df["Product"] = pd.Categorical(df["Product"], categories=product_order, ordered=True)
-    df["Variable"] = pd.Categorical(df["Variable"], categories=variable_order, ordered=True)
-
-    g = sns.catplot(
+    plt.figure(figsize=(8, 4))
+    ax = sns.barplot(
         data=df,
         x="Product",
-        y="Value",
-        hue="Model",
-        col="Variable",
-        kind="bar",
-        sharey=False,
-        height=4,
-        aspect=0.9
+        y="Quantity",
+        hue="Model"
     )
 
-    g.figure.subplots_adjust(top=0.82)
-    g.figure.suptitle("Bidding strategy per market: CM+DA+EAM vs DA+EAM")
+    ax.set_xlabel("")
+    ax.set_ylabel("Mean bid quantity E[x] [MW]", fontsize=11)
+    ax.set_title("Mean bid quantity per market product", fontsize=12)
+    ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.7)
+    ax.tick_params(axis="x", rotation=15)
 
-    for ax in g.axes.flat:
-        ax.set_xlabel("")
-        ax.set_ylabel("Mean value")
-        ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.7)
-
+    plt.legend(title="", frameon=False)
+    plt.tight_layout()
     plt.savefig(save_path, dpi=300, bbox_inches="tight")
     plt.close()
 
+def plot_market_attendance_expected_r(output_dict, da_eam_output_dict, save_path):
+    """
+    Sammenligner gjennomsnittlig budpris r per produkt mellom:
+    - Full modell: CM+DA+EAM
+    - Modell: DA+EAM
 
+    Figuren har én akse, med to søyler per produkt (én per modell).
+    """
 
+    r = output_dict["r"]
+    da_eam_r = da_eam_output_dict["r"]
+    U = output_dict["U"]
+    V = output_dict["V"]
+    W = output_dict["W"]
+    M_u = output_dict["M_u"]
+    M_v = output_dict["M_v"]
+    M_w = output_dict["M_w"]
+
+    rows_full = summarize_policy_r(
+        r,
+        U, V, W,
+        M_u, M_v, M_w,
+        model_label="CM+DA+EAM"
+    )
+
+    rows_da_eam = summarize_policy_r(
+        da_eam_r,
+        U, V, W,
+        M_u, M_v, M_w,
+        model_label="DA+EAM"
+    )
+
+    df = pd.DataFrame(rows_full + rows_da_eam)
+
+    # Ryddig rekkefølge på produktene
+    product_order = M_u + M_v + M_w
+    df["Product"] = pd.Categorical(df["Product"],
+                                   categories=product_order,
+                                   ordered=True)
+    df["Model"] = pd.Categorical(df["Model"],
+                                 categories=["CM+DA+EAM", "DA+EAM"],
+                                 ordered=True)
+
+    plt.figure(figsize=(8, 4))
+    ax = sns.barplot(
+        data=df,
+        x="Product",
+        y="Price",
+        hue="Model"
+    )
+
+    ax.set_xlabel("")
+    ax.set_ylabel("Mean bid price E[r] [NOK/MW]", fontsize=11)
+    ax.set_title("Mean bid price per market product", fontsize=12)
+    ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.7)
+    ax.tick_params(axis="x", rotation=15)
+
+    plt.legend(title="", frameon=False)
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    plt.close()
 
 
 
@@ -339,91 +446,56 @@ def plot_bid_strategy_comparison_full_vs_da_eam(
 #  Forventet volum per marked (CM, DA, EAM)
 # ============================================================
 
-
-
-def plot_expected_market_volumes(model, a, U, V, W, M_u, M_v, M_w,
-                                 save_path):
+def plot_expected_a(output_dict_1, output_dict_2, label1, label2, save_path):
     """
-    Plotter forventet aktivert volum (E[a]) for hver markedsprodukt:
-    - Stage 2: CM_up, CM_down
-    - Stage 3: DA
-    - Stage 4: EAM_up, EAM_down
+    Plotter forventet aktivert volum E[a] per markedsprodukt for to policies:
+    - (model1, a1) med navn label1
+    - (model2, a2) med navn label2
+
+    Resultatet er en grouped bar chart med:
+    - x-akse: markedsprodukt (CM_up, CM_down, DA, EAM_up, EAM_down)
+    - y-akse: forventet aktivert volum
+    - hue: policy (f.eks. 'Stochastic', 'Stochastic + det. CM')
     """
+    model1 = output_dict_1["model"]
+    model2 = output_dict_2["model"]
+    a1 = output_dict_1["a"]
+    a2 = output_dict_2["a"]
+    U = output_dict_1["U"]
+    V = output_dict_1["V"]
+    W = output_dict_1["W"]
+    M_u = output_dict_1["M_u"]
+    M_v = output_dict_1["M_v"]
+    M_w = output_dict_1["M_w"]
 
-    scenario_tree = model._scenario_tree
-    nodes = scenario_tree["nodes"]
+    df1 = utils.compute_expected_volumes(model1, a1, U, V, W, M_u, M_v, M_w, label1)
+    df2 = utils.compute_expected_volumes(model2, a2, U, V, W, M_u, M_v, M_w, label2)
 
-    # ---------- Hjelpefunksjoner for sannsynligheter ----------
-    # π_u
-    def pi_u(u):
-        return nodes[u].cond_prob
+    df = pd.concat([df1, df2], ignore_index=True)
 
-    # π_{v|u}
-    def pi_v_given_u(v):
-        return nodes[v].cond_prob
+    # Behold naturlig produktrekkefølge
+    product_order = M_u + M_v + M_w
+    df["Market product"] = pd.Categorical(df["Market product"],
+                                          categories=product_order,
+                                          ordered=True)
 
-    # π_{w|v}
-    def pi_w_given_v(w):
-        return nodes[w].cond_prob
-
-    # ---------- Forventede volum per produkt ----------
-    exp_vol = {}
-
-    # Stage 2: CM (avhengig av u)
-    for m in M_u:
-        val = 0.0
-        for u in U:
-            val += pi_u(u) * a[m, u].X
-        exp_vol[m] = val
-
-    # Stage 3: DA (avhengig av v, strukturert via u -> v)
-    for m in M_v:   # bare "DA"
-        val = 0.0
-        for u in U:
-            for v in V[u]:
-                val += pi_u(u) * pi_v_given_u(v) * a[m, v].X
-        exp_vol[m] = val
-
-    # Stage 4: EAM (avhengig av w, strukturert via u -> v -> w)
-    for m in M_w:
-        val = 0.0
-        for u in U:
-            for v in V[u]:
-                for w in W[v]:
-                    val += pi_u(u) * pi_v_given_u(v) * pi_w_given_v(w) * a[m, w].X
-        exp_vol[m] = val
-
-    # ---------- Bygg DataFrame for plotting ----------
-    data = []
-    for m, val in exp_vol.items():
-        if m in M_u:
-            stage = "Stage 2 – CM"
-        elif m in M_v:
-            stage = "Stage 3 – DA"
-        else:
-            stage = "Stage 4 – EAM"
-
-        data.append({
-            "Market product": m,
-            "Stage": stage,
-            "Expected activated volume [MW]": val
-        })
-
-    df = pd.DataFrame(data)
-
-    # ---------- Plot med seaborn ----------
-    plt.figure(figsize=(8, 5))
+    # Figur – ryddig, artikkelvennlig
+    plt.figure(figsize=(7, 4.5))
     ax = sns.barplot(
         data=df,
         x="Market product",
         y="Expected activated volume [MW]",
-        hue="Stage"
+        hue="Policy"
     )
 
-    ax.set_title("Expected activated volume per market product")
-    ax.set_ylabel("E[a] [MW]")
+    ax.set_title("Expected activated volume per market product", fontsize=12)
+    ax.set_ylabel("Expected activated volume E[a] [MW]", fontsize=11)
     ax.set_xlabel("")
+    ax.legend(title="", fontsize=9)
+    plt.xticks(rotation=0)
     ax.grid(axis="y", linestyle="--", linewidth=0.5, alpha=0.7)
+
     plt.tight_layout()
-    plt.savefig(save_path, dpi=300)
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
     plt.close()
+

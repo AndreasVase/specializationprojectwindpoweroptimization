@@ -321,8 +321,22 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
         else:
             utils.print_results(model, x, r, a, delta, d, U, V, W, M_u, M_v, M_w)
 
+    output_dict = {
+        "model": model,
+        "x": x,
+        "r": r,
+        "a": a,
+        "delta": delta,
+        "d": d,
+        "U": U,
+        "V": V,
+        "W": W,
+        "M_u": M_u,
+        "M_v": M_v,
+        "M_w": M_w
+    }
 
-    return model, x, r, a, delta, d, U, V, W, M_u, M_v, M_w
+    return output_dict
 
 
 
