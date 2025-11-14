@@ -59,22 +59,26 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
 
     epsilon = 1e-3
 
-    P_MAX_EAM_up   = 0  # maks pris for EAM up
-    P_MAX_EAM_down = 0    # maks pris for EAM down
+    x_mFRR_min = 10  # minimum budstørrelse i mFRR-markedet
+
+    r_MAX_EAM_up   = 0  # maks pris for EAM up
+    r_MAX_EAM_down = 0    # maks pris for EAM down
 
 
     # --- VARIABLES ---
 
     # x_ms: bid quantity
-    x = model.addVars(idx_ms, lb=0.0, name="x")
+    x = model.addVars(idx_ms, lb=0, vtype=GRB.INTEGER, name="x")
     # r_ms: bid price
     r = model.addVars(idx_ms, lb=0, name="r")
     # δ_ms: 1 hvis budet aktiveres
     delta = model.addVars(idx_ms, vtype=GRB.BINARY, name="delta")
     # a_ms: aktivert kvantum
-    a = model.addVars(idx_ms, lb=0.0, name="a")
+    a = model.addVars(idx_ms, lb=0, vtype=GRB.INTEGER, name="a")
     # d_mw: avvik fra aktivert kvantum i terminale scenarier
-    d = model.addVars(idx_mw, lb=0, name="d") 
+    d = model.addVars(idx_mw, lb=0, vtype=GRB.INTEGER, name="d")
+    # Binær variabel som indikerer om vi faktisk legger inn et bud (≠ 0)
+    y = model.addVars([(m, s) for (m, s) in idx_ms if m in (M_u + M_w)], vtype=GRB.BINARY, name="y")
 
 
     # --- OBJECTIVE FUNCTION ---
@@ -268,16 +272,37 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
             )
 
 
+    # Minimum bid quantity constraints for mFRR markets (CM_up and CM_down)
+    for (m, s) in y.keys():
+        # Hvis y[m,s] = 1  ->  x[m,s] ≥ MIN_Q
+        model.addConstr(
+            x[m, s] >= x_mFRR_min * y[m, s],
+            name=f"mFRR_min_lb[{m},{s}]"
+        )
+
+        # Hvis y_bid[m,s] = 0  ->  x[m,s] ≤ 0
+        # (og generelt x[m,s] ≤ BIGM hvis y_bid = 1)
+        model.addConstr(
+            x[m, s] <= BIGM * y[m, s],
+            name=f"mFRR_min_ub[{m},{s}]"
+        )
+
+
+
     # Ensuring that a realistic price is bid in the EAM markets
     for w in W_all:
         model.addConstr(
-            r["EAM_up", w] <= P_MAX_EAM_up,
+            r["EAM_up", w] <= r_MAX_EAM_up,
             name=f"max_price_EAMup_{w}"
         )
         model.addConstr(
-            r["EAM_down", w] <= P_MAX_EAM_down,
+            r["EAM_down", w] <= r_MAX_EAM_down,
             name=f"max_price_EAMdown_{w}"
         )
+
+
+
+    
 
 
     # --- EVALUATE DETERMINISTIC CM POLICY ---

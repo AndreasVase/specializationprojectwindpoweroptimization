@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 
 def wind_speed_to_production_capacity(wind_speed):
-    prod_cap = wind_speed  # enkel mapping som eksempel
+    prod_cap = 10 * wind_speed  # enkel mapping som eksempel
     return prod_cap
 
 
@@ -80,7 +80,15 @@ def sort_nodes(node_set):
 
 
 def print_results(model, x, r, a, delta, d,
-                  U, V, W, M1, M2, M3):
+                  U, V, W, M1, M2, M3,
+                  max_u=3, max_v_per_u=3, max_w_per_v=3):
+    """
+    Skriver ut en komprimert oversikt over løsningen.
+
+    max_u         : maks antall u-noder (stage 2) å skrive ut (None = alle)
+    max_v_per_u   : maks antall v-noder per u (stage 3)
+    max_w_per_v   : maks antall w-noder per v (stage 4)
+    """
 
     if model.Status != GRB.OPTIMAL:
         print("Model not solved to optimality. Status:", model.Status)
@@ -90,58 +98,67 @@ def print_results(model, x, r, a, delta, d,
     print("   OPTIMAL SOLUTION")
     print("======================\n")
 
-    # Objective value
     print(f"Objective value: {model.ObjVal:,.4f}\n")
 
-    # ---------- Stage 2: CM (samme for alle u pga ikke-anticipativitet) ----------
-    u0 = next(iter(U))
-    print("--- Stage 2 (CM) – same for all u (by non-anticipativity) ---")
-    for m in M1:
-        print(
-            f"{m}: x={x[m,u0].X:.3f}, "
-            f"a={a[m,u0].X:.3f}, "
-            f"r={r[m,u0].X:.3f}, "
-            f"δ={int(round(delta[m,u0].X))}"
-        )
-    print()
+    # Sorter noder for ryddig utskrift
+    U_sorted = sort_nodes(U)
+    if max_u is not None:
+        U_sorted = U_sorted[:max_u]
 
-    # ---------- Stage 3: DA per v-node (sortert v1, v2, ..., vN) ----------
-    print("--- Stage 3 (DA) – per v ---")
-    max_v_per_u = 20  # juster hvis du vil se flere/færre
-    for u in U:
-        V_u = V[u]
-        V_sample = sort_nodes(V_u)[:max_v_per_u]
-    for v in sort_nodes(V_sample):
-
-        for m in M2:
+    # ---------- Stage 2: CM ----------
+    print("--- Stage 2 (CM) – non-anticipative across u ---")
+    for u in U_sorted:
+        print(f"u = {u}:")
+        for m in M1:
             print(
-                f"{m} in {v}: "
-                f"x={x[m,v].X:.3f}, "
-                f"a={a[m,v].X:.3f}, "
-                f"r={r[m,v].X:.3f}, "
-                f"δ={int(round(delta[m,v].X))}"
+                f"  {m}: x={x[m,u].X:.3f}, "
+                f"a={a[m,u].X:.3f}, "
+                f"r={r[m,u].X:.3f}, "
+                f"δ={int(round(delta[m,u].X))}"
             )
+        print()
     print()
 
-    # ---------- Stage 4: EAM – representative w per v ----------
-    print("--- Stage 4 (EAM) – representative child scenarios per v ---")
-    max_w_per_v = 2  # juster hvis du vil se flere/færre
+    # Vi lagrer hvilke v-er vi skriver ut per u, så vi kan bruke de samme i stage 4
+    V_samples = {}
 
-    for v in sort_nodes(V_sample):
-        W_v = W[v]
-        W_sample = sort_nodes(W_v)[:max_w_per_v]
+    # ---------- Stage 3: DA ----------
+    print("--- Stage 3 (DA) – per u and v ---")
+    for u in U_sorted:
+        V_u_sorted = sort_nodes(V[u])
+        V_sample = V_u_sorted[:max_v_per_u]
+        V_samples[u] = V_sample
 
-        print(f"\nParent scenario {v}:")
-        for w in W_sample:
-            for m in M3:
+        print(f"\nParent CM node u = {u}:")
+        for v in V_sample:
+            for m in M2:
                 print(
-                    f"  {m} in {w}: "
-                    f"x={x[m,w].X:.3f}, "
-                    f"a={a[m,w].X:.3f}, "
-                    f"r={r[m,w].X:.3f}, "
-                    f"δ={int(round(delta[m,w].X))}, "
-                    f"d={d[m,w].X:.3f}"
+                    f"  {m} in {v}: "
+                    f"x={x[m,v].X:.3f}, "
+                    f"a={a[m,v].X:.3f}, "
+                    f"r={r[m,v].X:.3f}, "
+                    f"δ={int(round(delta[m,v].X))}"
                 )
+    print()
+
+    # ---------- Stage 4: EAM ----------
+    print("--- Stage 4 (EAM) – child w scenarios per v ---")
+    for u in U_sorted:
+        for v in V_samples[u]:
+            W_v_sorted = sort_nodes(W[v])
+            W_sample = W_v_sorted[:max_w_per_v]
+
+            print(f"\nParent scenario v = {v} (from u = {u}):")
+            for w in W_sample:
+                for m in M3:
+                    print(
+                        f"  {m} in {w}: "
+                        f"x={x[m,w].X:.3f}, "
+                        f"a={a[m,w].X:.3f}, "
+                        f"r={r[m,w].X:.3f}, "
+                        f"δ={int(round(delta[m,w].X))}, "
+                        f"d={d[m,w].X:.3f}"
+                    )
     print()
 
     print("=============================================")
