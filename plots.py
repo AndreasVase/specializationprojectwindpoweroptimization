@@ -27,8 +27,8 @@ def plot_model_type_objective_comparison(output_dict, det_output_dict, save_path
 
     data = pd.DataFrame({
         "Policy": [
-            "Stochastic optimal",
-            "Stochastic w/ deterministic CM"
+            "Stochastic model",
+            "Deterministic CM policy in stochastic model"
         ],
         "Objective value": [obj_stoch, obj_detcm]
     })
@@ -39,7 +39,7 @@ def plot_model_type_objective_comparison(output_dict, det_output_dict, save_path
         x="Policy",
         y="Objective value"
     )
-    ax.set_title("Objective value comparison")
+    ax.set_title("Objective value comparison of stochastic vs deterministic CM policy")
     ax.set_ylabel("Objective value")
     ax.set_xlabel("")
 
@@ -55,7 +55,7 @@ def plot_model_type_objective_comparison(output_dict, det_output_dict, save_path
         )
 
     # Tekstboks med differanse
-    txt = f"Δ = {diff:.2f} (Stochastic − Det.CM)"
+    txt = f"Δ = {diff:.2f}"
     plt.gcf().text(0.5, -0.05, txt, ha="center", fontsize=10)
 
     plt.tight_layout()
@@ -146,13 +146,13 @@ def plot_model_type_policy_comparison(output_dict, det_output_dict, save_path):
     # Venstre plott – full stochastic
     ax_left, ax2_left = draw_subplot(
         axes[0], stoch_x, stoch_a, stoch_r,
-        title="Stochastic optimal CM bids"
+        title="Stochastic soultion"
     )
 
     # Høyre plott – stochastic + deterministic CM
     ax_right, ax2_right = draw_subplot(
         axes[1], det_x_vals, det_a_vals, det_r_vals,
-        title="Stochastic model w/ deterministic CM"
+        title="Deterministic CM bids"
     )
 
     # --- Legend flyttes under tittelen ---
@@ -167,13 +167,14 @@ def plot_model_type_policy_comparison(output_dict, det_output_dict, save_path):
                fontsize=9)
 
     # --- Layout ---
-    fig.suptitle("Capacity market bidding decision per product",
+    fig.suptitle("Capacity market bidding decisions: Stochastic vs Deterministic CM policy",
                  fontsize=13, y=1.02)
 
     fig.tight_layout(rect=[0, 0, 1, 0.90])
 
     plt.savefig(save_path, dpi=300, bbox_inches="tight")
     plt.close()
+
 
 # ============================================================
 #  Objektivverdi: CM+DA+EAM vs kun DA og EAM
