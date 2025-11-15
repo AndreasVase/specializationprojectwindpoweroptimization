@@ -55,7 +55,12 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
             C[("EAM_up",   w)] = 2.0 * eam_up_price
             C[("EAM_down", w)] = 2.0 * eam_down_price
 
-    BIGM = 1000
+
+    R_max = 1000  # stor nok verdi for big-M
+
+    BIGM_1 = R_max
+    BIGM_2 = max(Q.values())  # maksimal produksjonskapasitet
+    BIGM_3 = max(Q.values())
 
     epsilon = 1e-3
 
@@ -78,7 +83,7 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
     # d_mw: avvik fra aktivert kvantum i terminale scenarier
     d = model.addVars(idx_mw, lb=0, vtype=GRB.INTEGER, name="d")
     # Binær variabel som indikerer om vi faktisk legger inn et bud (≠ 0)
-    y = model.addVars([(m, s) for (m, s) in idx_ms if m in (M_u + M_w)], vtype=GRB.BINARY, name="y")
+    b = model.addVars([(m, s) for (m, s) in idx_ms if m in (M_u + M_w)], vtype=GRB.BINARY, name="b")
 
 
     # --- OBJECTIVE FUNCTION ---
@@ -142,13 +147,13 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
 
         # 2) a_ms <= M * delta_ms
         model.addConstr(
-            a[m, s] <= BIGM * delta[m, s],
+            a[m, s] <= BIGM_2 * delta[m, s],
             name=f"act_le_Mdelta[{m},{s}]"
         )
 
         # 3) a_ms >= x_ms - (1 - M * delta_ms)
         model.addConstr(
-            a[m, s] >= x[m, s] - BIGM * (1 - delta[m, s]),
+            a[m, s] >= x[m, s] - BIGM_2 * (1 - delta[m, s]),
             name=f"act_ge_bid_bigM[{m},{s}]"
         )
 
@@ -158,13 +163,13 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
 
         # r_ms - P_ms <= M (1 - delta_ms)
         model.addConstr(
-            r[m, s] - P[(m, s)] <= BIGM * (1 - delta[m, s]),
+            r[m, s] - P[(m, s)] <= BIGM_1 * (1 - delta[m, s]),
             name=f"act_upper[{m},{s}]"
         )
 
         # P_ms - r_ms <= M delta_ms - eps
         model.addConstr(
-            P[(m, s)] - r[m, s] <= BIGM * delta[m, s] - epsilon,
+            P[(m, s)] - r[m, s] <= BIGM_1 * delta[m, s] - epsilon,
             name=f"act_lower[{m},{s}]"
         )
 
@@ -273,17 +278,17 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
 
 
     # Minimum bid quantity constraints for mFRR markets (CM_up and CM_down)
-    for (m, s) in y.keys():
-        # Hvis y[m,s] = 1  ->  x[m,s] ≥ MIN_Q
+    for (m, s) in b.keys():
+        # Hvis b[m,s] = 1  ->  x[m,s] ≥ MIN_Q
         model.addConstr(
-            x[m, s] >= x_mFRR_min * y[m, s],
+            x[m, s] >= x_mFRR_min * b[m, s],
             name=f"mFRR_min_lb[{m},{s}]"
         )
 
         # Hvis y_bid[m,s] = 0  ->  x[m,s] ≤ 0
         # (og generelt x[m,s] ≤ BIGM hvis y_bid = 1)
         model.addConstr(
-            x[m, s] <= BIGM * y[m, s],
+            x[m, s] <= BIGM_2 * b[m, s],
             name=f"mFRR_min_ub[{m},{s}]"
         )
 
