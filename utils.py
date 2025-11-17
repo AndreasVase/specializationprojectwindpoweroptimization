@@ -158,6 +158,9 @@ def print_results(model, x, r, a, delta, d, Q,
                         f"r={r[m,w].X:.3f}, "
                         f"δ={int(round(delta[m,w].X))}, "
                         f"d={d[m,w].X:.3f}, "
+                        f"d_DA={d['DA', w].X:.3f}, "
+                        f"d_CM_u={d['CM_up', w].X:.3f}, "
+                        f"d_CM_d={d['CM_down', w].X:.3f}, "
                         f"Q={Q[w]:.3f}"
                     )
     print()
