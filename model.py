@@ -60,7 +60,6 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
 
     BIGM_1 = R_max
     BIGM_2 = max(Q.values())  # maksimal produksjonskapasitet
-    BIGM_3 = max(Q.values())
 
     epsilon = 1e-3
 
@@ -85,7 +84,7 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
     # Binær variabel som indikerer om vi faktisk legger inn et bud (≠ 0)
     b = model.addVars([(m, s) for (m, s) in idx_ms if m in (M_u + M_w)], vtype=GRB.BINARY, name="b")
     # Binær variabel som indikerer om det er avvik i DA-markedet
-    mu = model.addVars([(m, s) for (m, s) in idx_ms if m in M_v], vtype=GRB.BINARY, name="mu2")
+    mu = model.addVars([(m, w) for (m, w) in idx_mw if m in M_v], vtype=GRB.BINARY, name="mu")
 
 
     # --- OBJECTIVE FUNCTION ---
@@ -267,50 +266,48 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
 
 
 
+    # Deviation constraints for DA market. The variable d_DA_w must be constrained both upwards and downwards to avoid allowing
+    # d_DA_w to be set high to absorb deviation from the EAM up bids
 
     for v in V_all:
         for w in W[v]:
-            # a_{2v} - Q_w ≤ M^{(3)} μ_{2w}
+
+            N = a["DA", v] - a["EAM_down", w]
+
             model.addConstr(
-                a["DA", v] - Q[w] <= BIGM_3 * mu["DA", w],
+                N - Q[w] <= BIGM_2 * mu["DA", w],
                 name=f"a2_minus_Q_le_M_mu2[DA,{w}]"
             )
 
-            # a_{2v} - Q_w ≥ -M^{(3)} (1 - μ_{2vw})
             model.addConstr(
-                a["DA", v] - Q[w] >= -BIGM_3 * (1 - mu["DA", w]),
+                N - Q[w] >= -BIGM_2 * (1 - mu["DA", w]),
                 name=f"a2_minus_Q_ge_-M_one_minus_mu2[DA,{w}]"
             )
 
-            # d_{2w} ≥ a_{2v} - Q_w
             model.addConstr(
-                d["DA", w] >= a["DA", v] - Q[w],
+                d["DA", w] >= N - Q[w],
                 name=f"d2_ge_a2_minus_Q[DA,{w}]"
             )
 
-            # d_{2w} ≤ a_{2v} - Q_w + M^{(3)} (1 - μ_{mvw})
             model.addConstr(
-                d["DA", w] <= a["DA", v] - Q[w] + BIGM_3 * (1 - mu["DA", w]),
+                d["DA", w] <= N - Q[w] + BIGM_2 * (1 - mu["DA", w]),
                 name=f"d2_le_a2_minus_Q_plus_M_one_minus_mum[DA,{w}]"
             )
 
-            # d_{2w} ≤ M^{(3)} μ_{mvw}
             model.addConstr(
-                d["DA", w] <= BIGM_3 * mu["DA", w],
+                d["DA", w] <= BIGM_2 * mu["DA", w],
                 name=f"d2_le_M_mum[DA,{w}]"
             )
+            
+            # --------------------------------------------------
 
 
-    # The total activated quantity in the market products 2 and 3↑ does not exceed the available production capacity in each scenario.
-    for v in V_all:
-        for w in W[v]:
-
-
-            # a_3↑w + a_2v  <= Q_w + d_3↑w + d_2w
             model.addConstr(
-                a["EAM_up", w] + a["DA", v] <= Q[w] + d["EAM_up", w] + d["DA", w],
+                a["EAM_up", w] <= Q[w] - N + d["EAM_up", w] + d["DA", w],
                 name=f"cap_EAMup[{v},{w}]"
             )
+
+
 
 
     # Minimum bid quantity constraints for mFRR markets (CM_up and CM_down)

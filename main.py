@@ -5,7 +5,7 @@ import tree
 
 
 
-path = "./input_data_10.csv"
+path = "./input_data_6.csv"
 det_policy_filename = "deterministic_policy.json"
 verbose = True
 
