@@ -1,4 +1,6 @@
 import pandas as pd
+import pyarrow
+import fastparquet
 
 def load_parameters_from_csv(path):
     """
@@ -36,12 +38,12 @@ def load_expected_values_from_csv(path):
     return P_CM_up, P_CM_down, P_DA, P_EAM_up, P_EAM_down, Q_mean
 
 
-path = "./mmo_datasets/NO3/roan/dayahead_forecasts.parquet"
+path = "mmo_datasets/NO3/roan/production_forecasts.parquet"
 
 def load_mmo_data():
     df = pd.read_parquet(path)
 
-    print(df.head(5))
+    print(df.head(100))
 
 
 

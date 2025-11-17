@@ -84,6 +84,8 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
     d = model.addVars(idx_mw, lb=0, vtype=GRB.INTEGER, name="d")
     # Binær variabel som indikerer om vi faktisk legger inn et bud (≠ 0)
     b = model.addVars([(m, s) for (m, s) in idx_ms if m in (M_u + M_w)], vtype=GRB.BINARY, name="b")
+    # Binær variabel som indikerer om det er avvik i DA-markedet
+    mu = model.addVars([(m, s) for (m, s) in idx_ms if m in M_v], vtype=GRB.BINARY, name="mu2")
 
 
     # --- OBJECTIVE FUNCTION ---
@@ -261,14 +263,48 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
             )
 
 
+
+
+
+
+
+    for v in V_all:
+        for w in W[v]:
+            # a_{2v} - Q_w ≤ M^{(3)} μ_{2w}
+            model.addConstr(
+                a["DA", v] - Q[w] <= BIGM_3 * mu["DA", w],
+                name=f"a2_minus_Q_le_M_mu2[{v},{w}]"
+            )
+
+            # a_{2v} - Q_w ≥ -M^{(3)} (1 - μ_{2vw})
+            model.addConstr(
+                a["DA", v] - Q[w] >= -BIGM_3 * (1 - mu["DA", w]),
+                name=f"a2_minus_Q_ge_-M_one_minus_mu2[{v},{w}]"
+            )
+
+            # d_{2w} ≥ a_{2v} - Q_w
+            model.addConstr(
+                d["DA", w] >= a["DA", v] - Q[w],
+                name=f"d2_ge_a2_minus_Q[{v},{w}]"
+            )
+
+            # d_{2w} ≤ a_{2v} - Q_w + M^{(3)} (1 - μ_{mvw})
+            model.addConstr(
+                d["DA", w] <= a["DA", v] - Q[w] + BIGM_3 * (1 - mu["DA", w]),
+                name=f"d2_le_a2_minus_Q_plus_M_one_minus_mum[{v},{w}]"
+            )
+
+            # d_{2w} ≤ M^{(3)} μ_{mvw}
+            model.addConstr(
+                d["DA", w] <= M3 * mum[v, w],
+                name=f"d2_le_M_mum[{v},{w}]"
+            )
+
+
     # The total activated quantity in the market products 2 and 3↑ does not exceed the available production capacity in each scenario.
     for v in V_all:
         for w in W[v]:
-            # a_2v <= Q_w + d_2w
-            model.addConstr(
-                a["DA", v] <= Q[w] + d["DA", w],
-                name=f"cap_DA[{v},{w}]"
-            )
+
 
             # a_3↑w + a_2v  <= Q_w + d_3↑w + d_2w
             model.addConstr(
