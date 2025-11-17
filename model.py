@@ -273,31 +273,31 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
             # a_{2v} - Q_w ≤ M^{(3)} μ_{2w}
             model.addConstr(
                 a["DA", v] - Q[w] <= BIGM_3 * mu["DA", w],
-                name=f"a2_minus_Q_le_M_mu2[{v},{w}]"
+                name=f"a2_minus_Q_le_M_mu2[DA,{w}]"
             )
 
             # a_{2v} - Q_w ≥ -M^{(3)} (1 - μ_{2vw})
             model.addConstr(
                 a["DA", v] - Q[w] >= -BIGM_3 * (1 - mu["DA", w]),
-                name=f"a2_minus_Q_ge_-M_one_minus_mu2[{v},{w}]"
+                name=f"a2_minus_Q_ge_-M_one_minus_mu2[DA,{w}]"
             )
 
             # d_{2w} ≥ a_{2v} - Q_w
             model.addConstr(
                 d["DA", w] >= a["DA", v] - Q[w],
-                name=f"d2_ge_a2_minus_Q[{v},{w}]"
+                name=f"d2_ge_a2_minus_Q[DA,{w}]"
             )
 
             # d_{2w} ≤ a_{2v} - Q_w + M^{(3)} (1 - μ_{mvw})
             model.addConstr(
                 d["DA", w] <= a["DA", v] - Q[w] + BIGM_3 * (1 - mu["DA", w]),
-                name=f"d2_le_a2_minus_Q_plus_M_one_minus_mum[{v},{w}]"
+                name=f"d2_le_a2_minus_Q_plus_M_one_minus_mum[DA,{w}]"
             )
 
             # d_{2w} ≤ M^{(3)} μ_{mvw}
             model.addConstr(
-                d["DA", w] <= M3 * mum[v, w],
-                name=f"d2_le_M_mum[{v},{w}]"
+                d["DA", w] <= BIGM_3 * mu["DA", w],
+                name=f"d2_le_M_mum[DA,{w}]"
             )
 
 
