@@ -270,9 +270,9 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
                 name=f"cap_DA[{v},{w}]"
             )
 
-            # a_3↑w <= Q_w - a_2v + d_3↑w
+            # a_3↑w + a_2v  <= Q_w + d_3↑w + d_2w
             model.addConstr(
-                a["EAM_up", w] <= Q[w] - a["DA", v] + d["EAM_up", w],
+                a["EAM_up", w] + a["DA", v] <= Q[w] + d["EAM_up", w] + d["DA", w],
                 name=f"cap_EAMup[{v},{w}]"
             )
 
@@ -313,8 +313,6 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
     # --- EVALUATE DETERMINISTIC CM POLICY ---
     if evaluate_deterministic_policy:
 
-        print("Evaluating deterministic CM policy from file:", det_policy_file)
-
         with open(det_policy_file, "r") as f:
             det_policy = json.load(f)
 
@@ -328,8 +326,6 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
                                     name=f"fix_r_{m}_{s}")
 
     # --- EVALUATE MODEL WITH ONLY DA AND EAM ---
-    print("Evaluating model with only DA and EAM markets included.")
-
     if only_da_and_eam:
         for m in M_u:
             for u in U:
@@ -347,9 +343,9 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
     # --- PRINT RESULTS ---
     if verbose:
         if evaluate_deterministic_policy:
-            utils.print_results_deterministic_policy(model, x, a, r, delta, d, U, V, W, M_u, M_v, M_w)
+            utils.print_results_deterministic_policy(model, x, a, r, delta, d, Q, U, V, W, M_u, M_v, M_w)
         else:
-            utils.print_results(model, x, r, a, delta, d, U, V, W, M_u, M_v, M_w)
+            utils.print_results(model, x, r, a, delta, d, Q, U, V, W, M_u, M_v, M_w)
 
     output_dict = {
         "model": model,
@@ -358,6 +354,7 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
         "a": a,
         "delta": delta,
         "d": d,
+        "Q": Q,
         "U": U,
         "V": V,
         "W": W,

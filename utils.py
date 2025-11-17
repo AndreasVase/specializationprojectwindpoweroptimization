@@ -79,7 +79,7 @@ def sort_nodes(node_set):
 
 
 
-def print_results(model, x, r, a, delta, d,
+def print_results(model, x, r, a, delta, d, Q,
                   U, V, W, M1, M2, M3,
                   max_u=3, max_v_per_u=3, max_w_per_v=3):
     """
@@ -157,7 +157,8 @@ def print_results(model, x, r, a, delta, d,
                         f"a={a[m,w].X:.3f}, "
                         f"r={r[m,w].X:.3f}, "
                         f"δ={int(round(delta[m,w].X))}, "
-                        f"d={d[m,w].X:.3f}"
+                        f"d={d[m,w].X:.3f}, "
+                        f"Q={Q[w]:.3f}"
                     )
     print()
 
@@ -169,7 +170,7 @@ def print_results(model, x, r, a, delta, d,
 
 
 def print_results_deterministic_policy(
-    model, x, a, r, delta, d, U, V, W, M_u, M_v, M_w
+    model, x, a, r, delta, d, Q, U, V, W, M_u, M_v, M_w
 ):
     num_v = 3   # hvor mange v-scenarier å vise
     num_w = 2   # hvor mange w per v
@@ -219,7 +220,11 @@ def print_results_deterministic_policy(
                     f"a={a[m,w].X:.3f}, "
                     f"r={r[m,w].X:.3f}, "
                     f"δ={int(delta[m,w].X)}, "
-                    f"d={d[m,w].X:.3f}"
+                    f"d={d[m,w].X:.3f}, "
+                    f"d_DA={d['DA', w].X:.3f}, "
+                    f"d_CM_u={d['CM_up', w].X:.3f}, "
+                    f"d_CM_d={d['CM_down', w].X:.3f}, "
+                    f"Q={Q[w]:.3f}"
                 )
 
     print("\n======================================")

@@ -5,15 +5,10 @@ import tree
 
 
 
-path = "./input_data.csv"
+path = "./input_data_10.csv"
 det_policy_filename = "deterministic_policy.json"
 verbose = True
 
-
-# Generate deterministic benchmark policy and save to file
-def generate_deterministic_policy_file():
-    print("\n Running deterministic benchmark model to generate policy... \n")
-    run_benchmark_model(path, det_policy_filename)
 
 
 # Run the stochastic model
@@ -24,6 +19,9 @@ def run_stochastic_model():
 
 # Run the stochastic model with the deterministic policy enforced
 def run_deterministic_policy_evaluation():
+
+    run_benchmark_model(path, det_policy_filename)
+
     print("\n Evaluating deterministic CM policy in stochastic model... \n")
     det_output_dict = run_model(path, det_policy_filename, evaluate_deterministic_policy=True, verbose=verbose)
     return det_output_dict
