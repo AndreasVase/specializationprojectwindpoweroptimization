@@ -292,10 +292,13 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
             
             # --------------------------------------------------
 
+
             model.addConstr(
                 a["EAM_up", w] <= Q[w] - N + d["EAM_up", w] + d["DA", w],
                 name=f"cap_EAMup[{v},{w}]"
             )
+
+
 
 
     # Minimum bid quantity constraints for mFRR markets (CM_up and CM_down)
