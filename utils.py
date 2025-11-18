@@ -321,59 +321,68 @@ def average_prices(prices_list):
         return None
     return sum(prices_list) / len(prices_list)
 
-def select_scenarios (n: int, CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed):
-    """Hjelpefunksjon for å velge n scenarier fra et sett."""
-    CM_up.sort()
-    CM_down.sort()
-    DA.sort()
-    EAM_up.sort()
-    EAM_down.sort()
-    wind_speed.sort()
-    if n == 2:
-        CM_up = [CM_up[len(CM_up)//2-5], CM_up[len(CM_up)//2+5]]
-        CM_down = [CM_down[len(CM_down)//2-5], CM_down[len(CM_down)//2+5]]
-        DA = [DA[len(DA)//2-5], DA[len(DA)//2+5]]
-        EAM_up = [EAM_up[len(EAM_up)//2-5], EAM_up[len(EAM_up)//2+5]]
-        EAM_down = [EAM_down[len(EAM_down)//2-5], EAM_down[len(EAM_down)//2+5]]
-        wind_speed = [wind_speed[len(wind_speed)//2-5], wind_speed[len(wind_speed)//2+5]]
-        return CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed
-    
-    elif n == 3:
-        CM_up = [CM_up[len(CM_up)//2-5], CM_up[len(CM_up)//2], CM_up[len(CM_up)//2+5]]
-        CM_down = [CM_down[len(CM_down)//2-5], CM_down[len(CM_down)//2], CM_down[len(CM_down)//2+5]]
-        DA = [DA[len(DA)//2-5], DA[len(DA)//2], DA[len(DA)//2+5]]
-        EAM_up = [EAM_up[len(EAM_up)//2-5], EAM_up[len(EAM_up)//2], EAM_up[len(EAM_up)//2+5]]
-        EAM_down = [EAM_down[len(EAM_down)//2-5], EAM_down[len(EAM_down)//2], EAM_down[len(EAM_down)//2+5]]
-        wind_speed = [wind_speed[len(wind_speed)//2-5], wind_speed[len(wind_speed)//2], wind_speed[len(wind_speed)//2+5]]
-        return CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed
-    
-    elif n == 5:
-        CM_up = [CM_up[len(CM_up)//2-5], CM_up[len(CM_up)//2-2], CM_up[len(CM_up)//2], CM_up[len(CM_up)//2+2], CM_up[len(CM_up)//2+5]]
-        CM_down = [CM_down[len(CM_down)//2-5], CM_down[len(CM_down)//2-2], CM_down[len(CM_down)//2], CM_down[len(CM_down)//2+2], CM_down[len(CM_down)//2+5]]
-        DA = [DA[len(DA)//2-5], DA[len(DA)//2-2], DA[len(DA)//2], DA[len(DA)//2+2], DA[len(DA)//2+5]]
-        EAM_up = [EAM_up[len(EAM_up)//2-5], EAM_up[len(EAM_up)//2-2], EAM_up[len(EAM_up)//2], EAM_up[len(EAM_up)//2+2], EAM_up[len(EAM_up)//2+5]]
-        EAM_down = [EAM_down[len(EAM_down)//2-5], EAM_down[len(EAM_down)//2-2], EAM_down[len(EAM_down)//2], EAM_down[len(EAM_down)//2+2], EAM_down[len(EAM_down)//2+5]]
-        wind_speed = [wind_speed[len(wind_speed)//2-5], wind_speed[len(wind_speed)//2-2], wind_speed[len(wind_speed)//2], wind_speed[len(wind_speed)//2+2], wind_speed[len(wind_speed)//2+5]]
-        return CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed
-    
-    elif n == 6:
-        CM_up = [CM_up[len(CM_up)//2-10], CM_up[len(CM_up)//2-5], CM_up[len(CM_up)//2-1], CM_up[len(CM_up)//2+1], CM_up[len(CM_up)//2+5], CM_up[len(CM_up)//2+10]]
-        CM_down = [CM_down[len(CM_down)//2-10], CM_down[len(CM_down)//2-5], CM_down[len(CM_down)//2-1], CM_down[len(CM_down)//2+1], CM_down[len(CM_down)//2+5], CM_down[len(CM_down)//2+10]]
-        DA = [DA[len(DA)//2-10], DA[len(DA)//2-5], DA[len(DA)//2-1], DA[len(DA)//2+1], DA[len(DA)//2+5], DA[len(DA)//2+10]]
-        EAM_up = [EAM_up[len(EAM_up)//2-10], EAM_up[len(EAM_up)//2-5], EAM_up[len(EAM_up)//2-1], EAM_up[len(EAM_up)//2+1], EAM_up[len(EAM_up)//2+5], EAM_up[len(EAM_up)//2+10]]
-        EAM_down = [EAM_down[len(EAM_down)//2-10], EAM_down[len(EAM_down)//2-5], EAM_down[len(EAM_down)//2-1], EAM_down[len(EAM_down)//2+1], EAM_down[len(EAM_down)//2+5], EAM_down[len(EAM_down)//2+10]]
-        wind_speed = [wind_speed[len(wind_speed)//2-10], wind_speed[len(wind_speed)//2-5], wind_speed[len(wind_speed)//2-1], wind_speed[len(wind_speed)//2+1], wind_speed[len(wind_speed)//2+5], wind_speed[len(wind_speed)//2+10]]
-        return CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed
-    
-    elif n == 10:
-        CM_up = [CM_up[len(CM_up)//2-15], CM_up[len(CM_up)//2-8], CM_up[len(CM_up)//2-6], CM_up[len(CM_up)//2-4], CM_up[len(CM_up)//2-2], CM_up[len(CM_up)//2+2], CM_up[len(CM_up)//2+4], CM_up[len(CM_up)//2+6], CM_up[len(CM_up)//2+8], CM_up[len(CM_up)//2+15]]
-        CM_down = [CM_down[len(CM_down)//2-15], CM_down[len(CM_down)//2-8], CM_down[len(CM_down)//2-6], CM_down[len(CM_down)//2-4], CM_down[len(CM_down)//2-2], CM_down[len(CM_down)//2+2], CM_down[len(CM_down)//2+4], CM_down[len(CM_down)//2+6], CM_down[len(CM_down)//2+8], CM_down[len(CM_down)//2+15]]
-        DA = [DA[len(DA)//2-15], DA[len(DA)//2-8], DA[len(DA)//2-6], DA[len(DA)//2-4], DA[len(DA)//2-2], DA[len(DA)//2+2], DA[len(DA)//2+4], DA[len(DA)//2+6], DA[len(DA)//2+8], DA[len(DA)//2+15]]
-        EAM_up = [EAM_up[len(EAM_up)//2-15], EAM_up[len(EAM_up)//2-8], EAM_up[len(EAM_up)//2-6], EAM_up[len(EAM_up)//2-4], EAM_up[len(EAM_up)//2-2], EAM_up[len(EAM_up)//2+2], EAM_up[len(EAM_up)//2+4], EAM_up[len(EAM_up)//2+6], EAM_up[len(EAM_up)//2+8], EAM_up[len(EAM_up)//2+15]]
-        EAM_down = [EAM_down[len(EAM_down)//2-15], EAM_down[len(EAM_down)//2-8], EAM_down[len(EAM_down)//2-6], EAM_down[len(EAM_down)//2-4], EAM_down[len(EAM_down)//2-2], EAM_down[len(EAM_down)//2+2], EAM_down[len(EAM_down)//2+4], EAM_down[len(EAM_down)//2+6], EAM_down[len(EAM_down)//2+8], EAM_down[len(EAM_down)//2+15]]
-        wind_speed = [wind_speed[len(wind_speed)//2-15], wind_speed[len(wind_speed)//2-8], wind_speed[len(wind_speed)//2-6], wind_speed[len(wind_speed)//2-4], wind_speed[len(wind_speed)//2-2], wind_speed[len(wind_speed)//2+2], wind_speed[len(wind_speed)//2+4], wind_speed[len(wind_speed)//2+6], wind_speed[len(wind_speed)//2+8], wind_speed[len(wind_speed)//2+15]]
-        return CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed
-    
-    else: 
-        print ("[ERROR] Please choose a number of scenarios equal to: 2, 3, 5, 6 or 10.")
-        assert n in [2, 3, 5, 6, 10]
+def select_scenarios(n: int, CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, metric="DA"):
+    """
+    Velger n scenarier på en konsistent måte:
+    - Alle lister antas å være [scenario0, scenario1, ..., scenarioK]
+    - Vi sorterer scenarie-indekser basert på én 'metric'-liste (default DA)
+    - Så velger vi scenarier rundt medianen i denne sorterte rekkefølgen
+    """
+
+    # Sjekk at alle lister har samme lengde
+    m = len(DA)
+    assert all(len(lst) == m for lst in [CM_up, CM_down, EAM_up, EAM_down, wind_speed]), \
+        "Alle lister må ha samme lengde"
+
+    # Hvilken liste skal vi bruke som sorterings-metrikk?
+    metric_map = {
+        "DA": DA,
+        "CM_up": CM_up,
+        "CM_down": CM_down,
+        "EAM_up": EAM_up,
+        "EAM_down": EAM_down,
+        "wind_speed": wind_speed,
+    }
+    metric_list = metric_map[metric]
+
+    # Sorter scenarie-indekser etter valgt metrikk
+    # 'order' er en permutasjon av [0, 1, ..., m-1]
+    order = sorted(range(m), key=lambda i: metric_list[i])
+
+    # Definer offset-mønstrene dine (samme som før)
+    offset_patterns = {
+        2:  [-5, +5],
+        3:  [-5, 0, +5],
+        5:  [-5, -2, 0, +2, +5],
+        6:  [-10, -5, -1, +1, +5, +10],
+        10: [-15, -8, -6, -4, -2, +2, +4, +6, +8, +15]
+    }
+
+    if n not in offset_patterns:
+        raise ValueError("n must be one of [2, 3, 5, 6, 10]")
+
+    offsets = offset_patterns[n]
+    mid = m // 2  # indeks til midten i den sorterte rekkefølgen
+
+    # Finn posisjoner i den sorterte listen (clamp til gyldig område)
+    pos_in_sorted = []
+    for off in offsets:
+        pos = mid + off
+        pos = max(0, min(m - 1, pos))  # sikre at vi ikke går utenfor [0, m-1]
+        pos_in_sorted.append(pos)
+
+    # Finn de faktiske scenarie-indeksene
+    picked_scenario_indices = [order[pos] for pos in pos_in_sorted]
+
+    # Hjelpefunksjon for å plukke ut verdier fra alle lister
+    def pick(lst):
+        return [lst[i] for i in picked_scenario_indices]
+
+    CM_up_sel     = pick(CM_up)
+    CM_down_sel   = pick(CM_down)
+    DA_sel        = pick(DA)
+    EAM_up_sel    = pick(EAM_up)
+    EAM_down_sel  = pick(EAM_down)
+    wind_speed_sel = pick(wind_speed)
+
+    return CM_up_sel, CM_down_sel, DA_sel, EAM_up_sel, EAM_down_sel, wind_speed_sel, picked_scenario_indices
