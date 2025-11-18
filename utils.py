@@ -68,6 +68,29 @@ def build_production_capacity(tree):
 
 
 
+def build_cost_parameters(U, V, W, P):
+    C = {}  # (m, w) -> cost coefficient
+    for u in U:
+        cm_up_price = P[("CM_up", u)]  # pris for EAM up i dette w-scenariet
+        cm_down_price = P[("CM_down", u)]  # pris for EAM down i dette w-scenariet
+
+        for v in V[u]:  # alle v som følger etter u
+            da_price = P[("DA", v)]
+
+            for w in W[v]:  # alle w som følger etter v
+                eam_up_price = P[("EAM_up", w)]  # pris for EAM up i dette w-scenariet
+                eam_down_price = P[("EAM_down", w)]  # pris for EAM down i dette w-scenariet
+
+                # her definerer vi kost for ALLE markeder i dette terminalscenariet
+                C[("CM_up",    w)] = 2.0 * cm_up_price
+                C[("CM_down",  w)] = 2.0 * cm_down_price
+                C[("DA",       w)] = 2.0 * da_price
+                C[("EAM_up",   w)] = 2.0 * eam_up_price
+                C[("EAM_down", w)] = 2.0 * eam_down_price
+    return C
+
+
+
 def sort_nodes(node_set):
     """Sorter noder som 'v1', 'v2', ..., 'v10' i numerisk rekkefølge."""
     def node_key(s):
@@ -158,6 +181,9 @@ def print_results(model, x, r, a, delta, d, Q,
                         f"r={r[m,w].X:.3f}, "
                         f"δ={int(round(delta[m,w].X))}, "
                         f"d={d[m,w].X:.3f}, "
+                        f"d_DA={d['DA', w].X:.3f}, "
+                        f"d_CM_u={d['CM_up', w].X:.3f}, "
+                        f"d_CM_d={d['CM_down', w].X:.3f}, "
                         f"Q={Q[w]:.3f}"
                     )
     print()
