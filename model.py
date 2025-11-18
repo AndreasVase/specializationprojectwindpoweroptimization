@@ -42,31 +42,19 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
 
     # --- PARAMETERS ---
     print ("[INFO] Building scenario tree")
+    
+
     P = utils.build_price_parameter(scenario_tree)
     Q = utils.build_production_capacity(scenario_tree)
+    C = utils.build_cost_parameters(U, V, W, P)
 
-    C = {}  # (m, w) -> cost coefficient
-    for v in V_all:
-        # DA-pris i dette v-scenariet
-        da_price = P[("DA", v)]
-        for w in W[v]:  # alle w som følger etter v
-            cm_up_price = P[("CM_up", w)]  # pris for EAM up i dette w-scenariet
-            cm_down_price = P[("CM_down", w)]  # pris for EAM down i dette w-scenariet
-            eam_up_price = P[("EAM_up", w)]  # pris for EAM up i dette w-scenariet
-            eam_down_price = P[("EAM_down", w)]  # pris for EAM down i dette w-scenariet
-            # her definerer vi kost for ALLE markeder i dette terminalscenariet
-            C[("CM_up",    w)] = 2.0 * cm_up_price
-            C[("CM_down",  w)] = 2.0 * cm_down_price
-            C[("DA",       w)] = 2.0 * da_price
-            C[("EAM_up",   w)] = 2.0 * eam_up_price
-            C[("EAM_down", w)] = 2.0 * eam_down_price
+
 
 
     R_max = 1000  # stor nok verdi for big-M
 
     BIGM_1 = R_max
     BIGM_2 = max(Q.values())  # maksimal produksjonskapasitet
-    BIGM_3 = max(Q.values())
 
     epsilon = 1e-3
 
@@ -87,11 +75,11 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
     # a_ms: aktivert kvantum
     a = model.addVars(idx_ms, lb=0, vtype=GRB.INTEGER, name="a")
     # d_mw: avvik fra aktivert kvantum i terminale scenarier
-    d = model.addVars(idx_mw, lb=0, vtype=GRB.INTEGER, name="d")
+    d = model.addVars(idx_mw, lb=0, ub=BIGM_2, name="d")
     # Binær variabel som indikerer om vi faktisk legger inn et bud (≠ 0)
     b = model.addVars([(m, s) for (m, s) in idx_ms if m in (M_u + M_w)], vtype=GRB.BINARY, name="b")
     # Binær variabel som indikerer om det er avvik i DA-markedet
-    mu = model.addVars([(m, s) for (m, s) in idx_ms if m in M_v], vtype=GRB.BINARY, name="mu2")
+    mu = model.addVars([(m, w) for (m, w) in idx_mw if m in M_v], vtype=GRB.BINARY, name="mu")
 
 
     # --- OBJECTIVE FUNCTION ---
@@ -130,7 +118,7 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
                 )
 
                 penalty_w = gp.quicksum(
-                    C[(m, w)] * d[m, w] for m in M
+                    C[ (m, w) ] * d[m, w] for m in M
                 )
 
                 term_v += pi_w_v * (revenue_w - penalty_w)
@@ -269,57 +257,51 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
             )
 
 
-
-
-
-
+    # Deviation constraints for DA market. The variable d_DA_w must be constrained both upwards and downwards to avoid allowing
+    # d_DA_w to be set high to absorb deviation from the EAM up bids
 
     for v in V_all:
         for w in W[v]:
-            # a_{2v} - Q_w ≤ M^{(3)} μ_{2w}
+
+            N = a["DA", v] - a["EAM_down", w]
+
             model.addConstr(
-                a["DA", v] - Q[w] <= BIGM_3 * mu["DA", w],
+                N - Q[w] <= BIGM_2 * mu["DA", w],
                 name=f"a2_minus_Q_le_M_mu2[DA,{w}]"
             )
 
-            # a_{2v} - Q_w ≥ -M^{(3)} (1 - μ_{2vw})
             model.addConstr(
-                a["DA", v] - Q[w] >= -BIGM_3 * (1 - mu["DA", w]),
+                N - Q[w] >= -BIGM_2 * (1 - mu["DA", w]),
                 name=f"a2_minus_Q_ge_-M_one_minus_mu2[DA,{w}]"
             )
 
-            # d_{2w} ≥ a_{2v} - Q_w
             model.addConstr(
-                d["DA", w] >= a["DA", v] - Q[w],
+                d["DA", w] >= N - Q[w],
                 name=f"d2_ge_a2_minus_Q[DA,{w}]"
             )
 
-            # d_{2w} ≤ a_{2v} - Q_w + M^{(3)} (1 - μ_{mvw})
             model.addConstr(
-                d["DA", w] <= a["DA", v] - Q[w] + BIGM_3 * (1 - mu["DA", w]),
+                d["DA", w] <= N - Q[w] + BIGM_2 * (1 - mu["DA", w]),
                 name=f"d2_le_a2_minus_Q_plus_M_one_minus_mum[DA,{w}]"
             )
 
-            # d_{2w} ≤ M^{(3)} μ_{mvw}
             model.addConstr(
-                d["DA", w] <= BIGM_3 * mu["DA", w],
+                d["DA", w] <= BIGM_2 * mu["DA", w],
                 name=f"d2_le_M_mum[DA,{w}]"
             )
+            
+            # --------------------------------------------------
 
 
-    # The total activated quantity in the market products 2 and 3↑ does not exceed the available production capacity in each scenario.
-    for v in V_all:
-        for w in W[v]:
-
-
-            # a_3↑w + a_2v  <= Q_w + d_3↑w + d_2w
             model.addConstr(
-                a["EAM_up", w] + a["DA", v] <= Q[w] + d["EAM_up", w] + d["DA", w],
+                a["EAM_up", w] <= Q[w] - N + d["EAM_up", w] + d["DA", w],
                 name=f"cap_EAMup[{v},{w}]"
             )
 
 
-    # Minimum bid quantity constraints for mFRR markets (CM_up and CM_down)
+
+
+    # Minimum bid quantity constraints for mFRR markets (CM and EAM)
     for (m, s) in b.keys():
         # Hvis b[m,s] = 1  ->  x[m,s] ≥ MIN_Q
         model.addConstr(
@@ -336,7 +318,7 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
 
 
 
-    # Ensuring that a realistic price is bid in the EAM markets
+    # Constraining bid price in the EAM markets
     for w in W_all:
         model.addConstr(
             r["EAM_up", w] <= r_MAX_EAM_up,
