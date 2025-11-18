@@ -301,7 +301,7 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
 
 
 
-    # Minimum bid quantity constraints for mFRR markets (CM_up and CM_down)
+    # Minimum bid quantity constraints for mFRR markets (CM and EAM)
     for (m, s) in b.keys():
         # Hvis b[m,s] = 1  ->  x[m,s] ≥ MIN_Q
         model.addConstr(
@@ -318,7 +318,7 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
 
 
 
-    # Ensuring that a realistic price is bid in the EAM markets
+    # Constraining bid price in the EAM markets
     for w in W_all:
         model.addConstr(
             r["EAM_up", w] <= r_MAX_EAM_up,
