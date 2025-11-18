@@ -4,7 +4,7 @@ import plots
 import tree
 
 # Run the stochastic model
-def run_stochastic_model(n, time_str, verbose=True):
+def run_stochastic_model():
     print("\n Running stochastic model...\n")
     output_dict = run_model(time_str, n, verbose=verbose)
     return output_dict
@@ -22,7 +22,7 @@ def run_deterministic_policy_evaluation():
 # Run the stochastic model with only DA and EAM markets included
 def run_da_eam_only_model():
     print("\n Running stochastic model with only DA and EAM markets included...\n")
-    da_eam_output_dict = run_model(path, only_da_and_eam=True, verbose=verbose)
+    da_eam_output_dict = run_model(time_str, n, only_da_and_eam=True, verbose=verbose)
     return da_eam_output_dict
 
 
@@ -104,4 +104,5 @@ if __name__ == "__main__":
     n = 2
     det_policy_filename = "deterministic_policy.json"
     verbose = True
-    run_stochastic_model(n, time_str, verbose=verbose)
+    run_stochastic_model()
+    #run_da_eam_only_model()
