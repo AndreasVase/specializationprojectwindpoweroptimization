@@ -13,9 +13,11 @@ class Node:
     cond_prob: float          # betinget sannsynlighet gitt foreldrenoden
 
 
-def build_scenario_tree(path: str) -> Dict[str, Any]:
+def build_scenario_tree(time_str: str, n:int) -> Dict[str, Any]:
     
-    CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed = read.load_parameters_from_csv(path)
+    CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed = read.load_parameters_from_parquet(time_str, n)
+    print("Read parameters from parquet.")
+    print (CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed)
     """
     Bygger scenariotre for:
       - Stage 1: root (før alt er kjent)
@@ -37,7 +39,7 @@ def build_scenario_tree(path: str) -> Dict[str, Any]:
     # --- Rotnode (stage 1) ---
     root = "root"
     add_node(root, stage=1, parent=None, info={}, cond_prob=1.0)
-
+    print("[INFO] Added root node.")
     # --- Stage 2: CM (alle kombinasjoner av CM_up og CM_down) ---
     n_CM_up = len(CM_up)
     n_CM_down = len(CM_down)
@@ -49,6 +51,7 @@ def build_scenario_tree(path: str) -> Dict[str, Any]:
         info = {"CM_up": p_up, "CM_down": p_down}
         add_node(name, stage=2, parent=root, info=info, cond_prob=cm_cond_prob)
         stage2_nodes.append(name)
+    print("[INFO] Added stage 2 CM nodes.")
 
     # --- Stage 3: DA (for hver CM-node alle DA-alternativer) ---
     n_DA = len(DA)
@@ -61,7 +64,7 @@ def build_scenario_tree(path: str) -> Dict[str, Any]:
             info = {"DA": p_da}
             add_node(name, stage=3, parent=parent_u, info=info, cond_prob=da_cond_prob)
             stage3_nodes.append(name)
-
+    print("[INFO] Added stage 3 DA nodes.")
     # --- Stage 4: EAM + vind (alle kombinasjoner) ---
     n_EAM_up = len(EAM_up)
     n_EAM_down = len(EAM_down)
@@ -85,7 +88,7 @@ def build_scenario_tree(path: str) -> Dict[str, Any]:
                 cond_prob=leaf_cond_prob,
             )
             leaf_nodes.append(name)
-
+    print("[INFO] Added stage 4 EAM + wind nodes.")
     # --- Bygg scenarier (én per løvnode) ---
     scenarios = []
     for leaf in leaf_nodes:

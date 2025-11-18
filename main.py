@@ -3,18 +3,10 @@ from benchmark_model import run_benchmark_model
 import plots
 import tree
 
-
-
-path = "./input_data_10.csv"
-det_policy_filename = "deterministic_policy.json"
-verbose = True
-
-
-
 # Run the stochastic model
-def run_stochastic_model():
+def run_stochastic_model(n, time_str, verbose=True):
     print("\n Running stochastic model...\n")
-    output_dict = run_model(path, verbose=verbose)
+    output_dict = run_model(time_str, n, verbose=verbose)
     return output_dict
 
 # Run the stochastic model with the deterministic policy enforced
@@ -107,4 +99,9 @@ def generate_da_eam_comparison_plots(output_dict, da_eam_output_dict):
 
 
 if __name__ == "__main__":
-    run_stochastic_model()
+    path = "./input_data_10.csv"
+    time_str = "2025-10-04 10:00:00+00:00"
+    n = 2
+    det_policy_filename = "deterministic_policy.json"
+    verbose = True
+    run_stochastic_model(n, time_str, verbose=verbose)
