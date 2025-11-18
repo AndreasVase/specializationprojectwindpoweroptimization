@@ -75,7 +75,7 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
     # a_ms: aktivert kvantum
     a = model.addVars(idx_ms, lb=0, vtype=GRB.INTEGER, name="a")
     # d_mw: avvik fra aktivert kvantum i terminale scenarier
-    d = model.addVars(idx_mw, lb=0, vtype=GRB.INTEGER, name="d")
+    d = model.addVars(idx_mw, lb=0, ub=BIGM_2, name="d")
     # Binær variabel som indikerer om vi faktisk legger inn et bud (≠ 0)
     b = model.addVars([(m, s) for (m, s) in idx_ms if m in (M_u + M_w)], vtype=GRB.BINARY, name="b")
     # Binær variabel som indikerer om det er avvik i DA-markedet
