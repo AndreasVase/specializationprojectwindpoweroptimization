@@ -61,10 +61,33 @@ def build_production_capacity(tree):
         if node.stage == 4:
             wind = node.info["wind_speed"]
 
-            prod_cap = wind_speed_to_production_capacity(wind)
+            prod_cap = wind
             Q[w] = prod_cap
 
     return Q
+
+
+
+def build_cost_parameters(U, V, W, P):
+    C = {}  # (m, w) -> cost coefficient
+    for u in U:
+        cm_up_price = P[("CM_up", u)]  # pris for EAM up i dette w-scenariet
+        cm_down_price = P[("CM_down", u)]  # pris for EAM down i dette w-scenariet
+
+        for v in V[u]:  # alle v som følger etter u
+            da_price = P[("DA", v)]
+
+            for w in W[v]:  # alle w som følger etter v
+                eam_up_price = P[("EAM_up", w)]  # pris for EAM up i dette w-scenariet
+                eam_down_price = P[("EAM_down", w)]  # pris for EAM down i dette w-scenariet
+
+                # her definerer vi kost for ALLE markeder i dette terminalscenariet
+                C[("CM_up",    w)] = 2.0 * cm_up_price
+                C[("CM_down",  w)] = 2.0 * cm_down_price
+                C[("DA",       w)] = 2.0 * da_price
+                C[("EAM_up",   w)] = 2.0 * eam_up_price
+                C[("EAM_down", w)] = 2.0 * eam_down_price
+    return C
 
 
 
@@ -317,3 +340,66 @@ def compute_expected_volumes(model, a, U, V, W, M_u, M_v, M_w, policy_label):
         })
 
     return pd.DataFrame(rows)
+
+def average_prices(prices_list):
+    "Caculuates average price from a list of values"
+    if not prices_list:
+        return None
+    return sum(prices_list) / len(prices_list)
+
+def select_scenarios (n: int, CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed):
+    """Hjelpefunksjon for å velge n scenarier fra et sett."""
+    CM_up.sort()
+    CM_down.sort()
+    DA.sort()
+    EAM_up.sort()
+    EAM_down.sort()
+    wind_speed.sort()
+    if n == 2:
+        CM_up = [CM_up[len(CM_up)//2-5], CM_up[len(CM_up)//2+5]]
+        CM_down = [CM_down[len(CM_down)//2-5], CM_down[len(CM_down)//2+5]]
+        DA = [DA[len(DA)//2-5], DA[len(DA)//2+5]]
+        EAM_up = [EAM_up[len(EAM_up)//2-5], EAM_up[len(EAM_up)//2+5]]
+        EAM_down = [EAM_down[len(EAM_down)//2-5], EAM_down[len(EAM_down)//2+5]]
+        wind_speed = [wind_speed[len(wind_speed)//2-5], wind_speed[len(wind_speed)//2+5]]
+        return CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed
+    
+    elif n == 3:
+        CM_up = [CM_up[len(CM_up)//2-5], CM_up[len(CM_up)//2], CM_up[len(CM_up)//2+5]]
+        CM_down = [CM_down[len(CM_down)//2-5], CM_down[len(CM_down)//2], CM_down[len(CM_down)//2+5]]
+        DA = [DA[len(DA)//2-5], DA[len(DA)//2], DA[len(DA)//2+5]]
+        EAM_up = [EAM_up[len(EAM_up)//2-5], EAM_up[len(EAM_up)//2], EAM_up[len(EAM_up)//2+5]]
+        EAM_down = [EAM_down[len(EAM_down)//2-5], EAM_down[len(EAM_down)//2], EAM_down[len(EAM_down)//2+5]]
+        wind_speed = [wind_speed[len(wind_speed)//2-5], wind_speed[len(wind_speed)//2], wind_speed[len(wind_speed)//2+5]]
+        return CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed
+    
+    elif n == 5:
+        CM_up = [CM_up[len(CM_up)//2-5], CM_up[len(CM_up)//2-2], CM_up[len(CM_up)//2], CM_up[len(CM_up)//2+2], CM_up[len(CM_up)//2+5]]
+        CM_down = [CM_down[len(CM_down)//2-5], CM_down[len(CM_down)//2-2], CM_down[len(CM_down)//2], CM_down[len(CM_down)//2+2], CM_down[len(CM_down)//2+5]]
+        DA = [DA[len(DA)//2-5], DA[len(DA)//2-2], DA[len(DA)//2], DA[len(DA)//2+2], DA[len(DA)//2+5]]
+        EAM_up = [EAM_up[len(EAM_up)//2-5], EAM_up[len(EAM_up)//2-2], EAM_up[len(EAM_up)//2], EAM_up[len(EAM_up)//2+2], EAM_up[len(EAM_up)//2+5]]
+        EAM_down = [EAM_down[len(EAM_down)//2-5], EAM_down[len(EAM_down)//2-2], EAM_down[len(EAM_down)//2], EAM_down[len(EAM_down)//2+2], EAM_down[len(EAM_down)//2+5]]
+        wind_speed = [wind_speed[len(wind_speed)//2-5], wind_speed[len(wind_speed)//2-2], wind_speed[len(wind_speed)//2], wind_speed[len(wind_speed)//2+2], wind_speed[len(wind_speed)//2+5]]
+        return CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed
+    
+    elif n == 6:
+        CM_up = [CM_up[len(CM_up)//2-10], CM_up[len(CM_up)//2-5], CM_up[len(CM_up)//2-1], CM_up[len(CM_up)//2+1], CM_up[len(CM_up)//2+5], CM_up[len(CM_up)//2+10]]
+        CM_down = [CM_down[len(CM_down)//2-10], CM_down[len(CM_down)//2-5], CM_down[len(CM_down)//2-1], CM_down[len(CM_down)//2+1], CM_down[len(CM_down)//2+5], CM_down[len(CM_down)//2+10]]
+        DA = [DA[len(DA)//2-10], DA[len(DA)//2-5], DA[len(DA)//2-1], DA[len(DA)//2+1], DA[len(DA)//2+5], DA[len(DA)//2+10]]
+        EAM_up = [EAM_up[len(EAM_up)//2-10], EAM_up[len(EAM_up)//2-5], EAM_up[len(EAM_up)//2-1], EAM_up[len(EAM_up)//2+1], EAM_up[len(EAM_up)//2+5], EAM_up[len(EAM_up)//2+10]]
+        EAM_down = [EAM_down[len(EAM_down)//2-10], EAM_down[len(EAM_down)//2-5], EAM_down[len(EAM_down)//2-1], EAM_down[len(EAM_down)//2+1], EAM_down[len(EAM_down)//2+5], EAM_down[len(EAM_down)//2+10]]
+        wind_speed = [wind_speed[len(wind_speed)//2-10], wind_speed[len(wind_speed)//2-5], wind_speed[len(wind_speed)//2-1], wind_speed[len(wind_speed)//2+1], wind_speed[len(wind_speed)//2+5], wind_speed[len(wind_speed)//2+10]]
+        return CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed
+    
+    elif n == 10:
+        CM_up = [CM_up[len(CM_up)//2-15], CM_up[len(CM_up)//2-8], CM_up[len(CM_up)//2-6], CM_up[len(CM_up)//2-4], CM_up[len(CM_up)//2-2], CM_up[len(CM_up)//2+2], CM_up[len(CM_up)//2+4], CM_up[len(CM_up)//2+6], CM_up[len(CM_up)//2+8], CM_up[len(CM_up)//2+15]]
+        CM_down = [CM_down[len(CM_down)//2-15], CM_down[len(CM_down)//2-8], CM_down[len(CM_down)//2-6], CM_down[len(CM_down)//2-4], CM_down[len(CM_down)//2-2], CM_down[len(CM_down)//2+2], CM_down[len(CM_down)//2+4], CM_down[len(CM_down)//2+6], CM_down[len(CM_down)//2+8], CM_down[len(CM_down)//2+15]]
+        DA = [DA[len(DA)//2-15], DA[len(DA)//2-8], DA[len(DA)//2-6], DA[len(DA)//2-4], DA[len(DA)//2-2], DA[len(DA)//2+2], DA[len(DA)//2+4], DA[len(DA)//2+6], DA[len(DA)//2+8], DA[len(DA)//2+15]]
+        EAM_up = [EAM_up[len(EAM_up)//2-15], EAM_up[len(EAM_up)//2-8], EAM_up[len(EAM_up)//2-6], EAM_up[len(EAM_up)//2-4], EAM_up[len(EAM_up)//2-2], EAM_up[len(EAM_up)//2+2], EAM_up[len(EAM_up)//2+4], EAM_up[len(EAM_up)//2+6], EAM_up[len(EAM_up)//2+8], EAM_up[len(EAM_up)//2+15]]
+        EAM_down = [EAM_down[len(EAM_down)//2-15], EAM_down[len(EAM_down)//2-8], EAM_down[len(EAM_down)//2-6], EAM_down[len(EAM_down)//2-4], EAM_down[len(EAM_down)//2-2], EAM_down[len(EAM_down)//2+2], EAM_down[len(EAM_down)//2+4], EAM_down[len(EAM_down)//2+6], EAM_down[len(EAM_down)//2+8], EAM_down[len(EAM_down)//2+15]]
+        wind_speed = [wind_speed[len(wind_speed)//2-15], wind_speed[len(wind_speed)//2-8], wind_speed[len(wind_speed)//2-6], wind_speed[len(wind_speed)//2-4], wind_speed[len(wind_speed)//2-2], wind_speed[len(wind_speed)//2+2], wind_speed[len(wind_speed)//2+4], wind_speed[len(wind_speed)//2+6], wind_speed[len(wind_speed)//2+8], wind_speed[len(wind_speed)//2+15]]
+        return CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed
+    
+    else: 
+        print ("[ERROR] Please choose a number of scenarios equal to: 2, 3, 5, 6 or 10.")
+        assert n in [2, 3, 5, 6, 10]

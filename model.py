@@ -7,7 +7,7 @@ import utils
 import json
 
 
-def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=False, only_da_and_eam=False, verbose=True):
+def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic_policy=False, only_da_and_eam=False, verbose=True):
 
     model = gp.Model()
 
@@ -21,39 +21,34 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
 
 
     # Bygg treet
-    scenario_tree = tree.build_scenario_tree(data_path)
+    scenario_tree = tree.build_scenario_tree(time_str, n)
+    print("[INFO] Built scenario tree.")
     # Lagre treet i modellen for tilgang
     model._scenario_tree = scenario_tree
+    print("[INFO] Stored scenario tree in model.")
+
 
     # Bygg sett fra treet
     U, V, W, S = tree.build_sets_from_tree(scenario_tree)
-    
+    print("[INFO] Built sets from scenario tree.")
+
     # flate mengder for v- og w-noder:
     V_all = set().union(*V.values())
     W_all = set().union(*W.values())
 
     # bygg indeksmengder (m,s)
     idx_ms, idx_mw = tree.build_index_sets(U=U, V_all=V_all, W_all=W_all, M_u=M_u, M_v=M_v, M_w=M_w, M=M)
-
+    print("[INFO] Built index sets.")
 
     # --- PARAMETERS ---
+    print ("[INFO] Building scenario tree")
+    
 
     P = utils.build_price_parameter(scenario_tree)
     Q = utils.build_production_capacity(scenario_tree)
+    C = utils.build_cost_parameters(U, V, W, P)
 
-    C = {}  # (m, w) -> cost coefficient
-    for v in V_all:
-        # DA-pris i dette v-scenariet
-        da_price = P[("DA", v)]
-        for w in W[v]:  # alle w som følger etter v
-            eam_up_price = P[("EAM_up", w)]  # pris for EAM up i dette w-scenariet
-            eam_down_price = P[("EAM_down", w)]  # pris for EAM down i dette w-scenariet
-            # her definerer vi kost for ALLE markeder i dette terminalscenariet
-            C[("CM_up",    w)] = 3.0 * da_price
-            C[("CM_down",  w)] = 3.0 * da_price
-            C[("DA",       w)] = 2.0 * da_price
-            C[("EAM_up",   w)] = 2.0 * eam_up_price
-            C[("EAM_down", w)] = 2.0 * eam_down_price
+
 
 
     R_max = 1000  # stor nok verdi for big-M
@@ -65,8 +60,8 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
 
     x_mFRR_min = 10  # minimum budstørrelse i mFRR-markedet
 
-    r_MAX_EAM_up   = 0  # maks pris for EAM up
-    r_MAX_EAM_down = 0    # maks pris for EAM down
+    r_MAX_EAM_up   = 9999  # maks pris for EAM up
+    r_MAX_EAM_down = 9999    # maks pris for EAM down
 
 
     # --- VARIABLES ---
@@ -80,7 +75,7 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
     # a_ms: aktivert kvantum
     a = model.addVars(idx_ms, lb=0, vtype=GRB.INTEGER, name="a")
     # d_mw: avvik fra aktivert kvantum i terminale scenarier
-    d = model.addVars(idx_mw, lb=0, vtype=GRB.INTEGER, name="d")
+    d = model.addVars(idx_mw, lb=0, ub=BIGM_2, name="d")
     # Binær variabel som indikerer om vi faktisk legger inn et bud (≠ 0)
     b = model.addVars([(m, s) for (m, s) in idx_ms if m in (M_u + M_w)], vtype=GRB.BINARY, name="b")
     # Binær variabel som indikerer om det er avvik i DA-markedet
@@ -123,7 +118,7 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
                 )
 
                 penalty_w = gp.quicksum(
-                    C[(m, w)] * d[m, w] for m in M
+                    C[ (m, w) ] * d[m, w] for m in M
                 )
 
                 term_v += pi_w_v * (revenue_w - penalty_w)
@@ -262,10 +257,6 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
             )
 
 
-
-
-
-
     # Deviation constraints for DA market. The variable d_DA_w must be constrained both upwards and downwards to avoid allowing
     # d_DA_w to be set high to absorb deviation from the EAM up bids
 
@@ -369,16 +360,18 @@ def run_model(data_path, det_policy_file=None, evaluate_deterministic_policy=Fal
                                     name=f"fix_r_zero_{m}_{s}")
     
 
-
+    print("Added all constraints, starting to optimize model...")
     # --- OPTIMIZE MODEL ---
+    
     model.optimize()
-
+    runtime = model.Runtime
+    print(f"Model optimized in {runtime:.2f} seconds.")
     # --- PRINT RESULTS ---
     if verbose:
         if evaluate_deterministic_policy:
             utils.print_results_deterministic_policy(model, x, a, r, delta, d, Q, U, V, W, M_u, M_v, M_w)
         else:
-            utils.print_results(model, x, r, a, delta, d, Q, U, V, W, M_u, M_v, M_w)
+            utils.print_results(model, x, r, a, delta, d, Q, U, V, W, M_u, M_v, M_w, )
 
     output_dict = {
         "model": model,
