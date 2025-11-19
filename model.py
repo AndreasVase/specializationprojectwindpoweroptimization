@@ -55,13 +55,14 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
 
     BIGM_1 = R_max
     BIGM_2 = max(Q.values())  # maksimal produksjonskapasitet
+    BIGM_3 = 3*BIGM_2
 
     epsilon = 1e-3
 
     x_mFRR_min = 10  # minimum budstørrelse i mFRR-markedet
 
-    r_MAX_EAM_up   = 9999  # maks pris for EAM up
-    r_MAX_EAM_down = 9999    # maks pris for EAM down
+    r_MAX_EAM_up   = 0  # maks pris for EAM up
+    r_MAX_EAM_down = 0    # maks pris for EAM down
 
 
     # --- VARIABLES ---
@@ -69,7 +70,7 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
     # x_ms: bid quantity
     x = model.addVars(idx_ms, lb=0, vtype=GRB.INTEGER, name="x")
     # r_ms: bid price
-    r = model.addVars(idx_ms, lb=0, name="r")
+    r = model.addVars(idx_ms, name="r")
     # δ_ms: 1 hvis budet aktiveres
     delta = model.addVars(idx_ms, vtype=GRB.BINARY, name="delta")
     # a_ms: aktivert kvantum
@@ -78,8 +79,9 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
     d = model.addVars(idx_mw, lb=0, ub=BIGM_2, name="d")
     # Binær variabel som indikerer om vi faktisk legger inn et bud (≠ 0)
     b = model.addVars([(m, s) for (m, s) in idx_ms if m in (M_u + M_w)], vtype=GRB.BINARY, name="b")
-    # Binær variabel som indikerer om det er avvik i DA-markedet
-    mu = model.addVars([(m, w) for (m, w) in idx_mw if m in M_v], vtype=GRB.BINARY, name="mu")
+ 
+    # Binærvariabel som indikerer om det er avvik i marked m i scenario w
+    mu = model.addVars([(m, w) for (m, w) in idx_mw], vtype=GRB.BINARY, name="mu")
 
 
     # --- OBJECTIVE FUNCTION ---
@@ -229,14 +231,6 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
 
     # --- MARKET CONSTRAINTS ---
 
-    # EAM down-regulation cannot exceed the activated day-ahead quantity without incurring a deviation
-    for v in V_all:
-        for w in W[v]:
-            model.addConstr(
-                a["EAM_down", w] - d["EAM_down", w] <= a["DA", v],
-                name=f"link_EAM_DA[{v},{w}]"
-            )
-
 
     # any up or down regulation committed in market 1 must be followed by at least the same amount of up or down bidding in stage 3
     # Bygg W(u) fra V(u) og W(v). W(u) er mengden av alle w-noder som følger u
@@ -257,11 +251,54 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
             )
 
 
-    # Deviation constraints for DA market. The variable d_DA_w must be constrained both upwards and downwards to avoid allowing
+    # Deviation constraints for EAM down market
+
+    for v in V_all:
+        for w in W[v]:
+
+            # EAM_down can exceed DA, but it will lead to a deviation. It must be constrained from above and below since
+            # the deviation cost can be negative
+            
+            diff = a["EAM_down", w] - a["DA", v]
+
+            model.addConstr(
+                diff <= BIGM_2 * mu["EAM_down", w],
+                name=f"a3_minus_a2_le_M_eta[{w}]"
+            )
+
+            model.addConstr(
+                diff >= -BIGM_2 * (1 - mu["EAM_down", w]),
+                name=f"a3_minus_a2_le_M_eta[{w}]"
+            )
+
+            # 3) d >= Delta
+            model.addConstr(
+                d["EAM_down", w] >= diff,
+                name=f"d_ge_Delta[{w}]"
+            )
+
+            # 4) d <= Delta + M * (1 - eta)
+            model.addConstr(
+                d["EAM_down", w] <= diff + BIGM_2 * (1 - mu["EAM_down", w]),
+                name=f"d_le_Delta_plus_M_one_minus_eta[{w}]"
+            )
+
+            # 5) d <= M * eta
+            model.addConstr(
+                d["EAM_down", w] <= BIGM_2 * mu["EAM_down", w],
+                name=f"d_le_M_eta[{v},{w}]"
+            )
+            
+
+
+    # Deviation constraints for DA market. 
+    # The variable d_DA_w must be constrained both upwards and downwards to avoid allowing
     # d_DA_w to be set high to absorb deviation from the EAM up bids
 
     for v in V_all:
         for w in W[v]:
+
+            # DA deviation constraints
 
             N = a["DA", v] - a["EAM_down", w]
 
@@ -291,14 +328,57 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
             )
             
             # --------------------------------------------------
+            
+    # Deviation constraints for EAM up market
+    for v in V_all:
+        for w in W[v]:
+            # EAM up deviation constraints
 
+            # Dette representerer hvor mye ekstra kraft du mangler i scenario w for å levere DA-leveranse + EAM_down-reduksjon + EAM_up-økning 
+            # etter at DA-shortfall (d_DA) og EAM_down-shortfall (d_EAM_down) er tatt hensyn til.
 
+            # Z_w = a_DA[v] - a_EAM_down[w] + a_EAM_up[w] - Q[w] - d_DA[w]
+            Z = (
+            a["DA", v]
+            - a["EAM_down", w]
+            + a["EAM_up", w]
+            - d["DA", w]
+            + d["EAM_down", w]
+            - Q[w]
+        )
+
+            # 1) Z <= M * eta
             model.addConstr(
-                a["EAM_up", w] <= Q[w] - N + d["EAM_up", w] + d["DA", w],
-                name=f"cap_EAMup[{v},{w}]"
+                Z <= BIGM_3 * mu["EAM_up", w],
+                name=f"Z_le_M_eta_EAMup[{w}]"
+            )
+
+            # 2) Z >= -M * (1 - eta)
+            model.addConstr(
+                Z >= -BIGM_3 * (1 - mu["EAM_up", w]),
+                name=f"Z_ge_minusM_one_minus_eta_EAMup[{w}]"
+            )
+
+            # 3) d_EAM_up >= Z
+            model.addConstr(
+                d["EAM_up", w] >= Z,
+                name=f"d_EAMup_ge_Z[{w}]"
+            )
+
+            # 4) d_EAM_up <= Z + M * (1 - eta)
+            model.addConstr(
+                d["EAM_up", w] <= Z + BIGM_3 * (1 - mu["EAM_up", w]),
+                name=f"d_EAMup_le_Z_plus_M_one_minus_eta[{w}]"
+            )
+
+            # 5) d_EAM_up <= M * eta
+            model.addConstr(
+                d["EAM_up", w] <= BIGM_3 * mu["EAM_up", w],
+                name=f"d_EAMup_le_M_eta[{w}]"
             )
 
 
+            
 
 
     # Minimum bid quantity constraints for mFRR markets (CM and EAM)
