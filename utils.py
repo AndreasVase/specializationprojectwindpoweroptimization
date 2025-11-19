@@ -84,7 +84,7 @@ def build_cost_parameters(U, V, W, P):
                 # her definerer vi kost for ALLE markeder i dette terminalscenariet
                 C[("CM_up",    w)] = 2.0 * cm_up_price
                 C[("CM_down",  w)] = 2.0 * cm_down_price
-                C[("DA",       w)] = 2.0 * da_price
+                C[("DA",       w)] = eam_up_price  # bruker EAM up price som kost for DA-avvik. SIMPLIFISERING AV VIRKELIGHETEN
                 C[("EAM_up",   w)] = 2.0 * eam_up_price
                 C[("EAM_down", w)] = 2.0 * eam_down_price
     return C
@@ -377,6 +377,7 @@ def select_scenarios(n: int, CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, m
 
     # Definer offset-mønstrene dine (samme som før)
     offset_patterns = {
+        1: [-22],
         2:  [-5, +5],
         3:  [-5, 0, +5],
         5:  [-5, -2, 0, +2, +5],

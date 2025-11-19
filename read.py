@@ -249,10 +249,10 @@ def load_market_data(
     return results
 
 
-def load_mmo_data():
+def load_mmo_data(path):
     df = pd.read_parquet(path)
 
-    print(df.head(1))
+    print(df.head(6))
 
 def load_parameters_from_parquet(time_str: str, scenarios: int):
     print(f"\nLoading market data for time: {time_str}")
@@ -270,7 +270,12 @@ def load_parameters_from_parquet(time_str: str, scenarios: int):
     EAM_up     = data["mfrr_eam_up_forecasts"]
     EAM_down   = data["mfrr_eam_down_forecasts"]
     wind_speed = data["production_forecasts"]
+    
+    # Goes through EAM_down and changes the sign of each value
+    for i in range(len(EAM_down)):
+        EAM_down[i] = -EAM_down[i]
 
+    
     CM_up_sel, CM_down_sel, DA_sel, EAM_up_sel, EAM_down_sel, wind_speed_sel, picked_scenario_indices = select_scenarios(scenarios, CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed)
 
     return CM_up_sel, CM_down_sel, DA_sel, EAM_up_sel, EAM_down_sel, wind_speed_sel, picked_scenario_indices
@@ -278,10 +283,21 @@ def load_parameters_from_parquet(time_str: str, scenarios: int):
 
 
 # path = "data/raw/mfrr_eam_up_forecasts.parquet"
-# # results = load_market_data(datetime(2025, 10, 4, 10, 0, 0).strftime("%Y-%m-%d %H:%M:%S%z"), area="NO3", park="roan")
-# mmo_data = load_mmo_data()
+# mmo_data = load_mmo_data(path)
 # path = "data/raw/mfrr_eam_down_forecasts.parquet"
-# mmo_data = load_mmo_data()
+# mmo_data = load_mmo_data(path)
 # path = "data/raw/imbalance_forecasts.parquet"
-# mmo_data = load_mmo_data()
-CM_up_sel, CM_down_sel, DA_sel, EAM_up_sel, EAM_down_sel, wind_speed_sel, picked_scenario_indices = load_parameters_from_parquet(datetime(2025, 10, 4, 10, 0, 0).strftime("%Y-%m-%d %H:%M:%S%z"),2)
+# mmo_data = load_mmo_data(path)
+
+
+# results = load_market_data(datetime(2025, 10, 4, 10, 0, 0).strftime("%Y-%m-%d %H:%M:%S%z"), area="NO3", park="roan")
+
+
+CM_up_sel, CM_down_sel, DA_sel, EAM_up_sel, EAM_down_sel, wind_speed_sel, picked_scenario_indices = load_parameters_from_parquet(datetime(2025, 10, 4, 10, 0, 0).strftime("%Y-%m-%d %H:%M:%S%z"),1)
+print("CM_up_sel:", CM_up_sel)
+print("CM_down_sel:", CM_down_sel)
+print("DA_sel:", DA_sel)
+print("EAM_up_sel:", EAM_up_sel)
+print("EAM_down_sel:", EAM_down_sel)
+print("wind_speed_sel:", wind_speed_sel)
+print("picked_scenario_indices:", picked_scenario_indices)
