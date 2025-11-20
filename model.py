@@ -238,17 +238,82 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
 
     for u in U:
         for w in W_u[u]:
-            # x_{3↑,w} + d_{1↑,w} >= a_{1↑,u}
+
+            # Deviation constraints for CM_up
+
+            # diff = a_CM_up[u] - x_EAM_up[w]
+            diff = a["CM_up", u] - x["EAM_up", w]
+
+            # diff <= M * mu
             model.addConstr(
-                x["EAM_up",  w] + d["CM_up",  w] >= a["CM_up",  u],
-                name=f"cov_CMup[{u},{w}]"
+                diff <= BIGM_2 * mu["CM_up", w]
             )
 
-            # x_{3↓,w} + d_{1↓,w} >= a_{1↓,u}
+            # diff >= -M * (1 - mu)
             model.addConstr(
-                x["EAM_down", w] + d["CM_down", w] >= a["CM_down", u],
-                name=f"cov_CMdown[{u},{w}]"
+                diff >= -BIGM_2 * (1 - mu["CM_up", w]),
             )
+
+            # d_CM_up[w] >= diff
+            model.addConstr(
+                d["CM_up", w] >= diff,
+            )
+
+            # d_CM_up[w] <= diff + M * (1 - mu)
+            model.addConstr(
+                d["CM_up", w] <= diff + BIGM_2 * (1 - mu["CM_up", w])
+            )
+
+            # d_CM_up[w] <= M * mu
+            model.addConstr(
+                d["CM_up", w] <= BIGM_2 * mu["CM_up", w]
+            )
+
+            
+            # Only constrained from below:
+            ## x_{3↑,w} + d_{1↑,w} >= a_{1↑,u}
+            #model.addConstr(
+            #    x["EAM_up",  w] + d["CM_up",  w] >= a["CM_up",  u],
+            #    name=f"cov_CMup[{u},{w}]"
+            #)
+
+
+            # Deviation constraints for CM_down
+
+            # diff = a_CM_up[u] - x_EAM_up[w]
+            diff = a["CM_down", u] - x["EAM_down", w]
+
+            # diff <= M * mu
+            model.addConstr(
+                diff <= BIGM_2 * mu["CM_down", w]
+            )
+
+            # diff >= -M * (1 - mu)
+            model.addConstr(
+                diff >= -BIGM_2 * (1 - mu["CM_down", w]),
+            )
+
+            # d_CM_up[w] >= diff
+            model.addConstr(
+                d["CM_down", w] >= diff,
+            )
+
+            # d_CM_up[w] <= diff + M * (1 - mu)
+            model.addConstr(
+                d["CM_down", w] <= diff + BIGM_2 * (1 - mu["CM_down", w])
+            )
+
+            # d_CM_up[w] <= M * mu
+            model.addConstr(
+                d["CM_down", w] <= BIGM_2 * mu["CM_down", w]
+            )
+
+
+            ## x_{3↓,w} + d_{1↓,w} >= a_{1↓,u}
+            #model.addConstr(
+            #    x["EAM_down", w] + d["CM_down", w] >= a["CM_down", u],
+            #    name=f"cov_CMdown[{u},{w}]"
+            #)
 
 
     # Deviation constraints for EAM down market
@@ -262,31 +327,26 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
             diff = a["EAM_down", w] - a["DA", v]
 
             model.addConstr(
-                diff <= BIGM_2 * mu["EAM_down", w],
-                name=f"a3_minus_a2_le_M_eta[{w}]"
+                diff <= BIGM_2 * mu["EAM_down", w]
             )
 
             model.addConstr(
-                diff >= -BIGM_2 * (1 - mu["EAM_down", w]),
-                name=f"a3_minus_a2_le_M_eta[{w}]"
+                diff >= -BIGM_2 * (1 - mu["EAM_down", w])
             )
 
             # 3) d >= Delta
             model.addConstr(
-                d["EAM_down", w] >= diff,
-                name=f"d_ge_Delta[{w}]"
+                d["EAM_down", w] >= diff
             )
 
             # 4) d <= Delta + M * (1 - eta)
             model.addConstr(
-                d["EAM_down", w] <= diff + BIGM_2 * (1 - mu["EAM_down", w]),
-                name=f"d_le_Delta_plus_M_one_minus_eta[{w}]"
+                d["EAM_down", w] <= diff + BIGM_2 * (1 - mu["EAM_down", w])
             )
 
             # 5) d <= M * eta
             model.addConstr(
-                d["EAM_down", w] <= BIGM_2 * mu["EAM_down", w],
-                name=f"d_le_M_eta[{v},{w}]"
+                d["EAM_down", w] <= BIGM_2 * mu["EAM_down", w]
             )
             
 
@@ -298,38 +358,32 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
     for v in V_all:
         for w in W[v]:
 
-            # DA deviation constraints
-
             N = a["DA", v] - a["EAM_down", w]
 
             model.addConstr(
-                N - Q[w] <= BIGM_2 * mu["DA", w],
-                name=f"a2_minus_Q_le_M_mu2[DA,{w}]"
+                N - Q[w] <= BIGM_2 * mu["DA", w]
             )
 
             model.addConstr(
-                N - Q[w] >= -BIGM_2 * (1 - mu["DA", w]),
-                name=f"a2_minus_Q_ge_-M_one_minus_mu2[DA,{w}]"
+                N - Q[w] >= -BIGM_2 * (1 - mu["DA", w])
             )
 
             model.addConstr(
-                d["DA", w] >= N - Q[w],
-                name=f"d2_ge_a2_minus_Q[DA,{w}]"
+                d["DA", w] >= N - Q[w]
             )
 
             model.addConstr(
-                d["DA", w] <= N - Q[w] + BIGM_2 * (1 - mu["DA", w]),
-                name=f"d2_le_a2_minus_Q_plus_M_one_minus_mum[DA,{w}]"
+                d["DA", w] <= N - Q[w] + BIGM_2 * (1 - mu["DA", w])
             )
 
             model.addConstr(
-                d["DA", w] <= BIGM_2 * mu["DA", w],
-                name=f"d2_le_M_mum[DA,{w}]"
+                d["DA", w] <= BIGM_2 * mu["DA", w]
             )
             
             # --------------------------------------------------
-            
+
     # Deviation constraints for EAM up market
+
     for v in V_all:
         for w in W[v]:
             # EAM up deviation constraints
@@ -349,32 +403,27 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
 
             # 1) Z <= M * eta
             model.addConstr(
-                Z <= BIGM_3 * mu["EAM_up", w],
-                name=f"Z_le_M_eta_EAMup[{w}]"
+                Z <= BIGM_3 * mu["EAM_up", w]
             )
 
             # 2) Z >= -M * (1 - eta)
             model.addConstr(
-                Z >= -BIGM_3 * (1 - mu["EAM_up", w]),
-                name=f"Z_ge_minusM_one_minus_eta_EAMup[{w}]"
+                Z >= -BIGM_3 * (1 - mu["EAM_up", w])
             )
 
             # 3) d_EAM_up >= Z
             model.addConstr(
-                d["EAM_up", w] >= Z,
-                name=f"d_EAMup_ge_Z[{w}]"
+                d["EAM_up", w] >= Z
             )
 
             # 4) d_EAM_up <= Z + M * (1 - eta)
             model.addConstr(
-                d["EAM_up", w] <= Z + BIGM_3 * (1 - mu["EAM_up", w]),
-                name=f"d_EAMup_le_Z_plus_M_one_minus_eta[{w}]"
+                d["EAM_up", w] <= Z + BIGM_3 * (1 - mu["EAM_up", w])
             )
 
             # 5) d_EAM_up <= M * eta
             model.addConstr(
-                d["EAM_up", w] <= BIGM_3 * mu["EAM_up", w],
-                name=f"d_EAMup_le_M_eta[{w}]"
+                d["EAM_up", w] <= BIGM_3 * mu["EAM_up", w]
             )
 
 
