@@ -55,7 +55,7 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
 
     BIGM_1 = R_max
     BIGM_2 = max(Q.values())  # maksimal produksjonskapasitet
-    BIGM_3 = 3*BIGM_2
+    BIGM_3 = 2*BIGM_2
 
     epsilon = 1e-3
 
