@@ -100,13 +100,8 @@ def generate_da_eam_comparison_plots(output_dict, da_eam_output_dict):
 
 if __name__ == "__main__":
     path = "./input_data_10.csv"
-<<<<<<< HEAD
-    time_str = "2025-10-04 10:00:00+00:00"
+    time_str = "2025-10-08 10:00:00+00:00"
     n = 5
-=======
-    time_str = "2025-10-10 10:00:00+00:00"
-    n = 2
->>>>>>> 480b8aa (change result print)
     det_policy_filename = "deterministic_policy.json"
     verbose = True
     run_stochastic_model()
