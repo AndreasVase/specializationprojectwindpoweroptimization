@@ -15,7 +15,7 @@ class Node:
 
 def build_scenario_tree(time_str: str, n:int) -> Dict[str, Any]:
     
-    CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed = read.load_parameters_from_parquet(time_str, n)
+    CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, picked_scenario_indices = read.load_parameters_from_parquet(time_str, n)
     print("Read parameters from parquet.")
     print (CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed)
     """
