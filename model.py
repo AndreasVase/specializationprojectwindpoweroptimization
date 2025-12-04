@@ -241,6 +241,25 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
 
             # Deviation constraints for CM_up
 
+            """
+            # hjelpevariabel for diff
+            z1 = model.addVar(lb=-GRB.INFINITY, name=f"diff_CM_up_{u}_{w}")
+            model.addConstr(
+                z1 == a["CM_up", u] - x["EAM_up", w],
+                name=f"def_diff_CM_up_{u}_{w}"
+            )
+
+            # d["CM_up", w] = max(z, 0)
+            model.addGenConstrMax(
+                d["CM_up", w],          # resultatvariabel
+                [z1],                    # KUN variabler i lista
+                constant=0.0,           # 0 som konstant bidrag
+                name=f"max_dev_CM_up_{u}_{w}",
+            )
+            """
+
+            # Deviation constraints for CM_up
+
             # diff = a_CM_up[u] - x_EAM_up[w]
             diff = a["CM_up", u] - x["EAM_up", w]
 
@@ -269,13 +288,7 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
                 d["CM_up", w] <= BIGM_2 * mu["CM_up", w]
             )
 
-            
-            # Only constrained from below:
-            ## x_{3↑,w} + d_{1↑,w} >= a_{1↑,u}
-            #model.addConstr(
-            #    x["EAM_up",  w] + d["CM_up",  w] >= a["CM_up",  u],
-            #    name=f"cov_CMup[{u},{w}]"
-            #)
+
 
 
             # Deviation constraints for CM_down

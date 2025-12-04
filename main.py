@@ -1,7 +1,8 @@
 from model import run_model
-from benchmark_model import run_benchmark_model
+#from benchmark_model import run_benchmark_model
 import plots
 import tree
+from benchmark import run_deterministic_benchmark
 
 # Run the stochastic model
 def run_stochastic_model():
@@ -12,7 +13,7 @@ def run_stochastic_model():
 # Run the stochastic model with the deterministic policy enforced
 def run_deterministic_policy_evaluation():
 
-    run_benchmark_model(path, det_policy_filename)
+    #run_benchmark_model(path, det_policy_filename)
 
     print("\n Evaluating deterministic CM policy in stochastic model... \n")
     det_output_dict = run_model(path, det_policy_filename, evaluate_deterministic_policy=True, verbose=verbose)
@@ -105,4 +106,5 @@ if __name__ == "__main__":
     det_policy_filename = "deterministic_policy.json"
     verbose = True
     run_stochastic_model()
-    #run_da_eam_only_model()
+
+    #print(run_deterministic_benchmark(time_str=time_str, n=n))
