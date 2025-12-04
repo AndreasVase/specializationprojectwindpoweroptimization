@@ -108,6 +108,8 @@ def run_deterministic_benchmark(time_str, n):
         
                                 objective_value += weight * obj
 
+    print(objective_value)
+
     return objective_value
 
 

@@ -500,3 +500,84 @@ def plot_expected_a(output_dict_1, output_dict_2, label1, label2, save_path):
     plt.savefig(save_path, dpi=300, bbox_inches="tight")
     plt.close()
 
+
+
+
+
+
+
+
+#
+#Funksjonskall
+#
+
+
+# -----------------------------------------------------------------
+# Deterministic CM policy vs Stochastic soulution
+# -----------------------------------------------------------------
+
+def generate_deterministic_policy_plots(output_dict, det_output_dict):
+    """
+    Genererer plots som sammenligner den stokastiske løsningen med løsningen
+    der en deterministisk CM-policy er påtvunget.
+    """
+    # objektivverdi
+    plot_model_type_objective_comparison(
+        output_dict,
+        det_output_dict,
+        save_path="fig_model_type_obj.png"
+    )
+
+    # CM-beslutninger (x, a, r)
+    plot_model_type_policy_comparison(
+        output_dict,
+        det_output_dict,
+        save_path="fig_model_type_policy.png"
+    )
+
+    # --- Forventet volum per marked Stochastic vs deterministic CM-policy ---
+    plot_expected_a(
+        output_dict,
+        det_output_dict,
+        label1="Stochastic solution", 
+        label2="Deterministic CM policy",
+        save_path="fig_model_type_expected_a.png"
+    )
+
+
+
+# -----------------------------------------------------------------
+# CM+DA+EAM vs DA+EAM only
+# -----------------------------------------------------------------
+
+def generate_da_eam_comparison_plots(output_dict, da_eam_output_dict):
+    # Objektivverdi-plot
+    plot_market_attendance_objective_comparison(
+        output_dict,
+        da_eam_output_dict,
+        save_path="fig_market_attendance_obj_comparison.png"
+    )
+
+    # Budstrategi-plot per marked
+    plot_market_attendance_expected_x(
+        output_dict,
+        da_eam_output_dict,
+        save_path="fig_market_attendance_expected_x.png"
+    )
+
+    # Budstrategi-plot per marked
+    plot_market_attendance_expected_r(
+        output_dict, 
+        da_eam_output_dict,
+        save_path="fig_market_attendance_expected_r.png"
+    )
+
+
+    # --- Forventet volum per marked Stochastic vs DA+EAM-only ---
+    plot_expected_a(
+        output_dict, 
+        da_eam_output_dict,
+        label1="Strategy: CM+DA+EAM",
+        label2="Strategy: DA+EAM",
+        save_path="fig_market_attendance_expected_a.png"
+    )
