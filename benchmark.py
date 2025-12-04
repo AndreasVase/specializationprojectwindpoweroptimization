@@ -13,59 +13,100 @@ def run_deterministic_benchmark(time_str, n):
 
     CM_up, CM_down, DA, EAM_up, EAM_down, prod_cap, picked_scenario_indices = read.load_parameters_from_parquet(time_str, n)
 
-    model, x, r = solve_EV(time_str, n, CM_up, CM_down, DA, EAM_up, EAM_down, prod_cap)
+    max_prod_cap = max(prod_cap)
+
+    objective_value = 0
+
+    model, x, r = solve_EV(CM_up=CM_up, 
+                            CM_down=CM_down,
+                            DA=DA, 
+                            EAM_up=EAM_up, 
+                            EAM_down=EAM_up, 
+                            prod_cap=prod_cap,
+
+                            max_prod_cap=max_prod_cap
+                            )
 
     x_CMup = x["CM_up"].X
     x_CMdown = x["CM_down"].X
     r_CMup = r["CM_up"].X
     r_CMdown = r["CM_down"].X
 
-    objective_value = 0
-
     for P_CMup in CM_up:
         for P_CMdown in CM_down:
-            model, x, r = solve_EV(time_str=time_str, 
-                            n=n,
-                            CM_up=[P_CMup],
-                            CM_down=[P_CMdown],
-                            DA=DA,
-                            EAM_up=EAM_up,
-                            EAM_down=EAM_down,
-                            prod_cap=prod_cap,
-                            x_CMup=x_CMup, 
-                            x_CMdown=x_CMdown, 
-                            r_CMup=r_CMup, 
-                            r_CMdown=r_CMdown)
+            model, x, r = solve_EV(CM_up=[P_CMup],
+                                    CM_down=[P_CMdown],
+
+                                    DA=DA,
+                                    EAM_up=EAM_up,
+                                    EAM_down=EAM_down,
+                                    prod_cap=prod_cap,
+
+                                    x_CMup=x_CMup, 
+                                    x_CMdown=x_CMdown, 
+                                    r_CMup=r_CMup, 
+                                    r_CMdown=r_CMdown,
+
+                                    max_prod_cap=max_prod_cap
+                                    )
             
             x_DA = x["DA"].X
             r_DA = r["DA"].X
 
             for P_DA in DA:
-                model, x, r = solve_EV(time_str=time_str, 
-                                n=n,
-                                CM_up=[P_CMup],
-                                CM_down=[P_CMdown],
-                                DA=[P_DA],
-                                EAM_up=EAM_up,
-                                EAM_down=EAM_down,
-                                prod_cap=prod_cap,
-                                x_CMup=x_CMup, 
-                                x_CMdown=x_CMdown, 
-                                r_CMup=r_CMup, 
-                                r_CMdown=r_CMdown,
-                                x_DA=x_DA,
-                                r_DA=r_DA)
+                model, x, r = solve_EV(CM_up=[P_CMup],
+                                        CM_down=[P_CMdown],
+                                        DA=[P_DA],
+
+                                        EAM_up=EAM_up,
+                                        EAM_down=EAM_down,
+                                        prod_cap=prod_cap,
+
+                                        x_CMup=x_CMup, 
+                                        x_CMdown=x_CMdown, 
+                                        r_CMup=r_CMup, 
+                                        r_CMdown=r_CMdown,
+                                        x_DA=x_DA,
+                                        r_DA=r_DA,
+
+                                        max_prod_cap=max_prod_cap
+                                        )
                 
                 x_EAMup = x["EAM_up"].X
                 x_EAMdown = x["EAM_down"].X
                 r_EAMup = r["EAM_up"].X
                 r_EAMdown = r["EAM_down"].X
+                
+                for P_EAMup in EAM_up:
+                    for P_EAMdown in EAM_down:
+                            for Q in prod_cap:
+                                model, x, r = solve_EV(CM_up=[P_CMup],
+                                                        CM_down=[P_CMdown],
+                                                        DA=[P_DA],
+                                                        EAM_up=[P_EAMup],
+                                                        EAM_down=[P_EAMdown],
+                                                        prod_cap=[Q],
 
-                obj = model.objVal
+                                                        x_CMup=x_CMup, 
+                                                        x_CMdown=x_CMdown, 
+                                                        r_CMup=r_CMup, 
+                                                        r_CMdown=r_CMdown,
+                                                        x_DA=x_DA,
+                                                        r_DA=r_DA,
+                                                        x_EAMup=x_EAMup, 
+                                                        x_EAMdown=x_EAMdown, 
+                                                        r_EAMup=r_EAMup, 
+                                                        r_EAMdown=r_EAMdown,
 
-                weight = 1 / ( len(CM_up) * len(CM_down) * len(DA) )
+                                                        max_prod_cap=max_prod_cap
+                                )
 
-                objective_value += weight * obj
+
+                                obj = model.objVal
+        
+                                weight = 1 / ( len(CM_up) * len(CM_down) * len(DA) * len(CM_up) * len(CM_down) * len(prod_cap))
+        
+                                objective_value += weight * obj
 
     return objective_value
 
@@ -73,8 +114,7 @@ def run_deterministic_benchmark(time_str, n):
 
 
 
-def solve_EV(time_str=None, 
-            n=None,
+def solve_EV(
             CM_up=None,
             CM_down=None,
             DA=None,
@@ -86,7 +126,13 @@ def solve_EV(time_str=None,
             x_CMdown=None, 
             r_CMdown=None, 
             x_DA=None, 
-            r_DA=None, 
+            r_DA=None,
+            x_EAMup=None, 
+            x_EAMdown=None, 
+            r_EAMup=None, 
+            r_EAMdown=None,
+
+            max_prod_cap=None
             ):
 
 
@@ -118,7 +164,7 @@ def solve_EV(time_str=None,
 
     R_max = 1000  # stor nok verdi for big-M
     BIGM_1 = R_max
-    BIGM_2 = Q  # maksimal produksjonskapasitet
+    BIGM_2 = max_prod_cap  # maksimal produksjonskapasitet
     BIGM_3 = 2*BIGM_2
 
     epsilon = 1e-3
@@ -158,23 +204,46 @@ def solve_EV(time_str=None,
 
     # --- FIXED VARIABLES ---
     if x_CMup is not None:
-        x["CM_up"] = x_CMup
+        x["CM_up"].lb = x_CMup
+        x["CM_up"].ub = x_CMup
 
     if x_CMdown is not None:
-        x["CM_down"] = x_CMdown
+        x["CM_down"].lb = x_CMdown
+        x["CM_down"].ub = x_CMdown
 
     if r_CMup is not None:
-        r["CM_up"] = r_CMup
+        r["CM_up"].lb = r_CMup
+        r["CM_up"].ub = r_CMup
 
     if r_CMdown is not None:
-        r["CM_down"] = r_CMdown
+        r["CM_down"].lb = r_CMdown
+        r["CM_down"].ub = r_CMdown
 
 
     if x_DA is not None:
-        x["DA"] = x_DA
+        x["DA"].lb = x_DA
+        x["DA"].ub = x_DA
     
     if r_DA is not None:
-        r["DA"] = r_DA
+        r["DA"].lb = r_DA
+        r["DA"].ub = r_DA
+
+
+    if x_EAMup is not None:
+        x["EAM_up"].lb = x_EAMup
+        x["EAM_up"].ub = x_EAMup
+
+    if x_EAMdown is not None:
+        x["EAM_down"].lb = x_EAMdown
+        x["EAM_down"].ub = x_EAMdown
+
+    if r_EAMup is not None:
+        r["EAM_up"].lb = r_EAMup
+        r["EAM_up"].ub = r_EAMup
+
+    if r_EAMdown is not None:
+        r["EAM_down"].lb = r_EAMdown
+        r["EAM_down"].ub = r_EAMdown
 
 
     # --- ACTIVATION CONSTRAINTS ---
@@ -423,10 +492,8 @@ def solve_EV(time_str=None,
     print_vars("Bid quantities x[m]", x)
     print_vars("Bid prices r[m]", r)
     print_vars("Activated quantities a[m]", a)
-    print_vars("Activation δ[m]", delta)
     print_vars("Deviation d[m]", d)
-    print_vars("Bid indicator b[m]", b)
-    print_vars("Deviation indicator mu[m]", mu)
+
 
     print("\n====================================")
     print("         END OF OPTIMAL SOLUTION    ")
