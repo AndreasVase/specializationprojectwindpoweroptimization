@@ -147,7 +147,7 @@ def run_deterministic_benchmark(time_str, n):
                                 d_EAMdown = d["EAM_down"].X
 
 
-                                weight = 1 / ( len(CM_up) * len(CM_down) * len(DA) * len(CM_up) * len(CM_down) * len(prod_cap))
+                                weight = 1 / ( len(CM_up) * len(CM_down) * len(DA) * len(EAM_up) * len(EAM_down) * len(prod_cap))
         
                                 objective_value += weight * obj
 
@@ -511,18 +511,18 @@ def solve_EV(
 
 
             
+    for m in (M_u + M_w):
+        # Minimum bid quantity constraints for mFRR markets (CM and EAM)
+        # Hvis b[m,s] = 1  ->  x[m,s] ≥ MIN_Q
+        model.addConstr(
+            x[m] >= x_mFRR_min * b[m]
+        )
 
-    # Minimum bid quantity constraints for mFRR markets (CM and EAM)
-    # Hvis b[m,s] = 1  ->  x[m,s] ≥ MIN_Q
-    model.addConstr(
-        x[m] >= x_mFRR_min * b[m]
-    )
-
-    # Hvis y_bid[m,s] = 0  ->  x[m,s] ≤ 0
-    # (og generelt x[m,s] ≤ BIGM hvis y_bid = 1)
-    model.addConstr(
-        x[m] <= BIGM_2 * b[m]
-    )
+        # Hvis y_bid[m,s] = 0  ->  x[m,s] ≤ 0
+        # (og generelt x[m,s] ≤ BIGM hvis y_bid = 1)
+        model.addConstr(
+            x[m] <= BIGM_2 * b[m]
+        )
 
 
 
