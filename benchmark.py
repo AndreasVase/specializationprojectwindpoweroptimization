@@ -17,11 +17,31 @@ def run_deterministic_benchmark(time_str, n):
 
     objective_value = 0
 
-    model, x, r = solve_EV(CM_up=CM_up, 
+    mean_x_DA = 0
+    mean_r_DA = 0
+    mean_x_EAMup = 0
+    mean_r_EAMup = 0
+    mean_x_EAMdown = 0
+    mean_r_EAMdown = 0
+
+    mean_a_CMup = 0
+    mean_d_CMup = 0
+    mean_a_CMdown = 0
+    mean_d_CMdown = 0
+    mean_a_DA = 0
+    mean_d_DA = 0
+    mean_a_EAMup = 0
+    mean_d_EAMup = 0
+    mean_a_EAMdown = 0
+    mean_d_EAMdown = 0
+
+
+
+    model, x, r, a, d = solve_EV(CM_up=CM_up, 
                             CM_down=CM_down,
                             DA=DA, 
                             EAM_up=EAM_up, 
-                            EAM_down=EAM_up, 
+                            EAM_down=EAM_down, 
                             prod_cap=prod_cap,
 
                             max_prod_cap=max_prod_cap
@@ -34,7 +54,7 @@ def run_deterministic_benchmark(time_str, n):
 
     for P_CMup in CM_up:
         for P_CMdown in CM_down:
-            model, x, r = solve_EV(CM_up=[P_CMup],
+            model, x, r, a, d = solve_EV(CM_up=[P_CMup],
                                     CM_down=[P_CMdown],
 
                                     DA=DA,
@@ -53,8 +73,13 @@ def run_deterministic_benchmark(time_str, n):
             x_DA = x["DA"].X
             r_DA = r["DA"].X
 
+            weight = 1 / (len(CM_up) * len(CM_down))
+
+            mean_x_DA += weight * x_DA
+            mean_r_DA += weight * r_DA
+
             for P_DA in DA:
-                model, x, r = solve_EV(CM_up=[P_CMup],
+                model, x, r, a, d = solve_EV(CM_up=[P_CMup],
                                         CM_down=[P_CMdown],
                                         DA=[P_DA],
 
@@ -76,11 +101,19 @@ def run_deterministic_benchmark(time_str, n):
                 x_EAMdown = x["EAM_down"].X
                 r_EAMup = r["EAM_up"].X
                 r_EAMdown = r["EAM_down"].X
-                
+
+                weight = 1 / (len(CM_up) * len(CM_down) * len(DA))
+
+                mean_x_EAMup += weight * x_EAMup
+                mean_r_EAMup += weight * r_EAMup
+                mean_x_EAMdown += weight * x_EAMdown
+                mean_r_EAMdown += weight * r_EAMdown
+
+
                 for P_EAMup in EAM_up:
                     for P_EAMdown in EAM_down:
                             for Q in prod_cap:
-                                model, x, r = solve_EV(CM_up=[P_CMup],
+                                model, x, r, a, d = solve_EV(CM_up=[P_CMup],
                                                         CM_down=[P_CMdown],
                                                         DA=[P_DA],
                                                         EAM_up=[P_EAMup],
@@ -101,15 +134,63 @@ def run_deterministic_benchmark(time_str, n):
                                                         max_prod_cap=max_prod_cap
                                 )
 
-
                                 obj = model.objVal
-        
+                                a_CMup = a["CM_up"].X
+                                d_CMup = d["CM_up"].X
+                                a_CMdown = a["CM_down"].X
+                                d_CMdown = d["CM_down"].X
+                                a_DA = a["DA"].X
+                                d_DA = d["DA"].X
+                                a_EAMup = a["EAM_up"].X
+                                d_EAMup = d["EAM_up"].X
+                                a_EAMdown = a["EAM_down"].X
+                                d_EAMdown = d["EAM_down"].X
+
+
                                 weight = 1 / ( len(CM_up) * len(CM_down) * len(DA) * len(CM_up) * len(CM_down) * len(prod_cap))
         
                                 objective_value += weight * obj
 
-    print(objective_value)
+                                mean_a_CMup += weight * a_CMup
+                                mean_d_CMup += weight * d_CMup
+                                mean_a_CMdown += weight * a_CMdown
+                                mean_d_CMdown += weight * d_CMdown
+                                mean_a_DA += weight * a_DA
+                                mean_d_DA += weight * d_DA
+                                mean_a_EAMup += weight * a_EAMup
+                                mean_d_EAMup += weight * d_EAMup
+                                mean_a_EAMdown += weight * a_EAMdown
+                                mean_d_EAMdown += weight * d_EAMdown
 
+
+
+    print("Objective value: ", objective_value)
+    print("")
+    print("x_CMup: ", x_CMup)
+    print("r_CMup: ", r_CMup)
+    print("mean_a_CMup: ", mean_a_CMup)
+    print("mean_d_CMup: ", mean_d_CMup)
+    print("")
+    print("x_CMdown: ", x_CMdown)
+    print("r_CMdown: ", r_CMdown)
+    print("mean_a_CMdown: ", mean_a_CMdown)
+    print("mean_d_CMdown: ", mean_d_CMdown)
+    print("")
+    print("mean_x_DA: ", mean_x_DA)
+    print("mean_r_DA: ", mean_r_DA)
+    print("mean_a_DA: ", mean_a_DA)
+    print("mean_d_DA: ", mean_d_DA)
+    print("")
+    print("mean_x_EAMup: ", mean_x_EAMup)
+    print("mean_r_EAMup: ", mean_r_EAMup)
+    print("mean_a_EAMup: ", mean_a_EAMup)
+    print("mean_d_EAMup: ", mean_d_EAMup)
+    print("")
+    print("mean_x_EAMdown: ", mean_x_EAMdown)
+    print("mean_r_EAMdown: ", mean_r_EAMdown)
+    print("mean_a_EAMdown: ", mean_a_EAMdown)
+    print("mean_d_EAMdown: ", mean_d_EAMdown)
+    
     return objective_value
 
 
@@ -501,7 +582,7 @@ def solve_EV(
     print("         END OF OPTIMAL SOLUTION    ")
     print("====================================\n")
 
-    return model, x, r
+    return model, x, r, a, d
 
 
 
