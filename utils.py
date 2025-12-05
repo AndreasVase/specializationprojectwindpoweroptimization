@@ -347,69 +347,37 @@ def average_prices(prices_list):
         return None
     return sum(prices_list) / len(prices_list)
 
-def select_scenarios(n: int, CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, metric="DA"):
+def select_scenarios(n, CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, seed=None):
     """
-    Velger n scenarier på en konsistent måte:
-    - Alle lister antas å være [scenario0, scenario1, ..., scenarioK]
-    - Vi sorterer scenarie-indekser basert på én 'metric'-liste (default DA)
-    - Så velger vi scenarier rundt medianen i denne sorterte rekkefølgen
+    Velger n scenarier tilfeldig og konsistent på tvers av alle lister.
     """
 
-    # Sjekk at alle lister har samme lengde
+    # Antall scenarier
     m = len(DA)
+
+    # Sjekk at alle lister har samme lengde
     assert all(len(lst) == m for lst in [CM_up, CM_down, EAM_up, EAM_down, wind_speed]), \
         "Alle lister må ha samme lengde"
 
-    # Hvilken liste skal vi bruke som sorterings-metrikk?
-    metric_map = {
-        "DA": DA,
-        "CM_up": CM_up,
-        "CM_down": CM_down,
-        "EAM_up": EAM_up,
-        "EAM_down": EAM_down,
-        "wind_speed": wind_speed,
-    }
-    metric_list = metric_map[metric]
+    if n > m:
+        raise ValueError(f"Kan ikke velge {n} scenarier når det bare finnes {m} scenarier.")
 
-    # Sorter scenarie-indekser etter valgt metrikk
-    # 'order' er en permutasjon av [0, 1, ..., m-1]
-    order = sorted(range(m), key=lambda i: metric_list[i])
+    # Bruk en RNG for renere seed-håndtering
+    rng = np.random.default_rng(seed)
 
-    # Definer offset-mønstrene dine (samme som før)
-    offset_patterns = {
-        1: [-22],
-        2:  [-5, +5],
-        3:  [-5, 0, +5],
-        5:  [-5, -2, 0, +2, +5],
-        6:  [-10, -5, -1, +1, +5, +10],
-        10: [-15, -8, -6, -4, -2, +2, +4, +6, +8, +15]
-    }
+    # Velg n unike scenarie-indekser fra [0, m-1]
+    picked_indices = rng.choice(m, size=n, replace=False)
 
-    if n not in offset_patterns:
-        raise ValueError("n must be one of [2, 3, 5, 6, 10]")
-
-    offsets = offset_patterns[n]
-    mid = m // 2  # indeks til midten i den sorterte rekkefølgen
-
-    # Finn posisjoner i den sorterte listen (clamp til gyldig område)
-    pos_in_sorted = []
-    for off in offsets:
-        pos = mid + off
-        pos = max(0, min(m - 1, pos))  # sikre at vi ikke går utenfor [0, m-1]
-        pos_in_sorted.append(pos)
-
-    # Finn de faktiske scenarie-indeksene
-    picked_scenario_indices = [order[pos] for pos in pos_in_sorted]
-
-    # Hjelpefunksjon for å plukke ut verdier fra alle lister
+    # Hjelpefunksjon for å plukke ut verdier
     def pick(lst):
-        return [lst[i] for i in picked_scenario_indices]
+        return [lst[i] for i in picked_indices]
 
-    CM_up_sel     = pick(CM_up)
-    CM_down_sel   = pick(CM_down)
-    DA_sel        = pick(DA)
-    EAM_up_sel    = pick(EAM_up)
-    EAM_down_sel  = pick(EAM_down)
+    CM_up_sel      = pick(CM_up)
+    CM_down_sel    = pick(CM_down)
+    DA_sel         = pick(DA)
+    EAM_up_sel     = pick(EAM_up)
+    EAM_down_sel   = pick(EAM_down)
     wind_speed_sel = pick(wind_speed)
 
-    return CM_up_sel, CM_down_sel, DA_sel, EAM_up_sel, EAM_down_sel, wind_speed_sel, picked_scenario_indices
+    # Returnerer også hvilke scenarie-indekser som ble valgt
+    return CM_up_sel, CM_down_sel, DA_sel, EAM_up_sel, EAM_down_sel, wind_speed_sel, picked_indices.tolist()
