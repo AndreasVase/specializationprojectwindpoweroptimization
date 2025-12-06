@@ -70,7 +70,7 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
     # x_ms: bid quantity
     x = model.addVars(idx_ms, lb=0, vtype=GRB.INTEGER, name="x")
     # r_ms: bid price
-    r = model.addVars(idx_ms, name="r")
+    r = model.addVars(idx_ms, lb=-GRB.INFINITY, name="r")
     # δ_ms: 1 hvis budet aktiveres
     delta = model.addVars(idx_ms, vtype=GRB.BINARY, name="delta")
     # a_ms: aktivert kvantum
@@ -461,15 +461,15 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
 
 
     # Constraining bid price in the EAM markets
-    for w in W_all:
-        model.addConstr(
-            r["EAM_up", w] <= r_MAX_EAM_up,
-            name=f"max_price_EAMup_{w}"
-        )
-        model.addConstr(
-            r["EAM_down", w] <= r_MAX_EAM_down,
-            name=f"max_price_EAMdown_{w}"
-        )
+    #for w in W_all:
+    #    model.addConstr(
+    #        r["EAM_up", w] <= r_MAX_EAM_up,
+    #        name=f"max_price_EAMup_{w}"
+    #    )
+    #    model.addConstr(
+    #        r["EAM_down", w] <= r_MAX_EAM_down,
+    #        name=f"max_price_EAMdown_{w}"
+    #    )
 
 
 
