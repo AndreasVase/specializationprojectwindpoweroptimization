@@ -543,7 +543,7 @@ def solve_EV(
     runtime = model.Runtime
     print(f"Model optimized in {runtime:.2f} seconds.")
 
-    
+    """
     # -------- PRINT RESULTS --------
 
     print("\n======================")
@@ -581,6 +581,7 @@ def solve_EV(
     print("\n====================================")
     print("         END OF OPTIMAL SOLUTION    ")
     print("====================================\n")
+    """
 
     return model, x, r, a, d
 
