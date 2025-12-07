@@ -13,9 +13,9 @@ class Node:
     cond_prob: float          # betinget sannsynlighet gitt foreldrenoden
 
 
-def build_scenario_tree(time_str: str, n:int) -> Dict[str, Any]:
+def build_scenario_tree(time_str: str, n:int, seed=None) -> Dict[str, Any]:
     
-    CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, picked_scenario_indices = read.load_parameters_from_parquet(time_str, n)
+    CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, picked_scenario_indices = read.load_parameters_from_parquet(time_str, n, seed)
     print("Read parameters from parquet.")
     print (CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed)
     """
