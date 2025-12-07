@@ -514,7 +514,7 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
         if evaluate_deterministic_policy:
             utils.print_results_deterministic_policy(model, x, a, r, delta, d, Q, U, V, W, M_u, M_v, M_w)
         else:
-            utils.print_results(model, x, r, a, delta, d, Q, U, V, W, M_u, M_v, M_w, )
+            utils.print_results(model, x, r, a, delta, d, Q, U, V, W, M_u, M_v, M_w)
 
     output_dict = {
         "model": model,
@@ -529,7 +529,9 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
         "W": W,
         "M_u": M_u,
         "M_v": M_v,
-        "M_w": M_w
+        "M_w": M_w,
+        "objective": model.ObjVal,   # <-- NEW
+        "runtime": runtime          # <-- NEW
     }
 
     return output_dict
