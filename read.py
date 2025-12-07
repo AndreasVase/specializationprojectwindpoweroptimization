@@ -254,7 +254,7 @@ def load_mmo_data(path):
 
     print(df.head(6))
 
-def load_parameters_from_parquet(time_str: str, scenarios: int):
+def load_parameters_from_parquet(time_str: str, scenarios: int, seed=None):
     print(f"\nLoading market data for time: {time_str}")
     data = load_market_data(
         time_str=time_str,
@@ -276,7 +276,7 @@ def load_parameters_from_parquet(time_str: str, scenarios: int):
         EAM_down[i] = -EAM_down[i]
 
     # We have added seed to be able to generate the same amount of random numbers
-    CM_up_sel, CM_down_sel, DA_sel, EAM_up_sel, EAM_down_sel, wind_speed_sel, picked_scenario_indices = select_scenarios(scenarios, CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed)
+    CM_up_sel, CM_down_sel, DA_sel, EAM_up_sel, EAM_down_sel, wind_speed_sel, picked_scenario_indices = select_scenarios(scenarios, CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, seed)
 
     return CM_up_sel, CM_down_sel, DA_sel, EAM_up_sel, EAM_down_sel, wind_speed_sel, picked_scenario_indices
 

@@ -4,6 +4,7 @@ import seaborn as sns
 import numpy as np
 import pandas as pd
 import utils
+from pathlib import Path
 
 
 
@@ -581,3 +582,291 @@ def generate_da_eam_comparison_plots(output_dict, da_eam_output_dict):
         label2="Strategy: DA+EAM",
         save_path="fig_market_attendance_expected_a.png"
     )
+
+def plot_avg_dayahead_first_forecasts(path_data: str):
+    """
+    For each prediction_for timestamp, pick the row with the *oldest* created_at
+    (i.e. the first time that hour was forecasted), average across scenario
+    columns, and plot the resulting time series.
+
+    This way, you get a curve from 2025-10-04 to 2025-10-14 (or whatever range
+    exists), instead of only the very first forecast run.
+    """
+
+    # 1) Load data
+    df = pd.read_parquet(path_data)
+
+    # 2) Ensure datetimes
+    df["prediction_for"] = pd.to_datetime(df["prediction_for"], utc=True)
+    df["created_at"] = pd.to_datetime(df["created_at"], utc=True)
+
+    # 3) Identify scenario columns (0, 1, ..., 49)
+    scenario_cols = [c for c in df.columns if c.isdigit()]
+    if not scenario_cols:
+        raise ValueError("No scenario columns (0..49) found in dataframe.")
+
+    # 4) Compute average over scenarios row-wise
+    df["avg_scenario_price"] = df[scenario_cols].mean(axis=1)
+
+    # 5) For each prediction_for, keep the row with the *earliest* created_at
+    #    (first forecast for that hour)
+    df_sorted = df.sort_values(["prediction_for", "created_at"])
+    idx_first = df_sorted.groupby("prediction_for")["created_at"].idxmin()
+    df_first = df_sorted.loc[idx_first].sort_values("prediction_for")
+
+    # 6) Plot
+    plt.figure(figsize=(12, 5))
+    plt.plot(df_first["prediction_for"], df_first["avg_scenario_price"])
+    plt.title("Average dayahead forecasted prices per hour, for the whole period")
+    plt.xlabel("Prediction time (prediction_for)")
+    plt.ylabel("Average forecast price")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+    return df_first
+
+
+def plot_dayahead_forecast_std(path_data: str):
+    """
+    Computes the standard deviation across the 50 forecast scenarios (0..49)
+    for each prediction_for timestamp, using the *earliest* created_at
+    forecast available for that hour.
+
+    Returns a dataframe with:
+        prediction_for, scenario_std
+    """
+
+    # 1) Load parquet
+    df = pd.read_parquet(path_data)
+
+    # 2) Ensure time columns are datetime
+    df["prediction_for"] = pd.to_datetime(df["prediction_for"], utc=True)
+    df["created_at"] = pd.to_datetime(df["created_at"], utc=True)
+
+    # 3) Identify scenario columns ("0" ... "49")
+    scenario_cols = [c for c in df.columns if c.isdigit()]
+    if not scenario_cols:
+        raise ValueError("No scenario columns found (expected 0..49).")
+
+    # 4) Sort, then select the earliest created_at for each prediction hour
+    df_sorted = df.sort_values(["prediction_for", "created_at"])
+    idx_first = df_sorted.groupby("prediction_for")["created_at"].idxmin()
+    df_first = df_sorted.loc[idx_first].sort_values("prediction_for")
+
+    # 5) Compute standard deviation across scenarios
+    df_first["scenario_std"] = df_first[scenario_cols].std(axis=1)
+
+    # 6) Plot the standard deviation
+    plt.figure(figsize=(12, 5))
+    plt.plot(df_first["prediction_for"], df_first["scenario_std"])
+    plt.title("Forecast Scenario Standard Deviation per Hour)")
+    plt.xlabel("Prediction Time")
+    plt.ylabel("Scenario Standard Deviation (€/MWh)")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+    return df_first[["prediction_for", "scenario_std"]]
+
+
+def compute_first_forecast_stats(path_data: Path, market: str) -> pd.DataFrame:
+    """
+    Computes average and std of forecast scenarios using ONLY
+    the earliest created_at for each prediction_for timestamp.
+
+    Returns DataFrame with:
+        prediction_for, avg_price, scenario_std
+    """
+
+    df = pd.read_parquet(path_data)
+
+    # Datetime fields
+    df["prediction_for"] = pd.to_datetime(df["prediction_for"], utc=True)
+    df["created_at"] = pd.to_datetime(df["created_at"], utc=True)
+
+    # Scenario columns: "0"..."49"
+    scenario_cols = [c for c in df.columns if c.isdigit()]
+    if not scenario_cols:
+        raise ValueError(f"No scenario columns detected for market {market}")
+
+    # Sort so earliest created_at per prediction_for is first
+    df_sorted = df.sort_values(["prediction_for", "created_at"])
+
+    # Select earliest forecast per hour
+    idx_first = df_sorted.groupby("prediction_for")["created_at"].idxmin()
+    df_first = df_sorted.loc[idx_first].sort_values("prediction_for")
+
+    # Average price across scenarios
+    df_first["avg_price"] = df_first[scenario_cols].mean(axis=1)
+
+    # Standard deviation across scenarios
+    df_first["scenario_std"] = df_first[scenario_cols].std(axis=1)
+
+    return df_first[["prediction_for", "avg_price", "scenario_std"]]
+
+
+def plot_and_save(df: pd.DataFrame, market: str, out_dir: Path):
+    """
+    Saves two plots:
+      - fig_average_prices_{market}.png
+      - fig_volatility_prices_{market}.png
+    """
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # -------- AVERAGE PRICE ----------
+    fig_avg, ax_avg = plt.subplots(figsize=(12, 5))
+    ax_avg.plot(df["prediction_for"], df["avg_price"])
+    ax_avg.set_title(f"Average forecast prices per hour – {market}")
+    ax_avg.set_xlabel("Prediction time")
+    ax_avg.set_ylabel("Average forecast price")
+    ax_avg.grid(True)
+    fig_avg.tight_layout()
+    fig_avg.savefig(out_dir / f"fig_average_prices_{market}.png", dpi=300)
+    plt.close(fig_avg)
+
+    # -------- VOLATILITY (STD) ----------
+    fig_std, ax_std = plt.subplots(figsize=(12, 5))
+    ax_std.plot(df["prediction_for"], df["scenario_std"])
+    ax_std.set_title(f"Forecast price volatility (std) per hour – {market}")
+    ax_std.set_xlabel("Prediction time")
+    ax_std.set_ylabel("Standard deviation of forecast prices")
+    ax_std.grid(True)
+    fig_std.tight_layout()
+    fig_std.savefig(out_dir / f"fig_volatility_prices_{market}.png", dpi=300)
+    plt.close(fig_std)
+
+
+def process_all_markets(file_mapping: dict, base_path: Path, fig_out_dir: Path):
+    """
+    Loop through all parquet files and produce:
+      - avg forecast plot
+      - std forecast plot
+    using earliest created_at only.
+    """
+
+    for filename, market in file_mapping.items():
+        path_data = base_path / filename
+
+        if not path_data.exists():
+            print(f"WARNING: {path_data} does not exist. Skipping.")
+            continue
+
+        print(f"Processing {market}...")
+
+        df_stats = compute_first_forecast_stats(path_data, market)
+        plot_and_save(df_stats, market, fig_out_dir)
+
+        print(f"Saved figures for {market}\n")
+
+def plot_scenarios_one_hour(prediction_time_str: str, area: str, base_path: Path | None = None, frequency: str | None = None):
+    """
+    Illustrate the 50 scenario values from all markets (day-ahead, eam up/down,
+    cm up/down) for one production hour (prediction_for).
+
+    For each market:
+      - Filter to given prediction_for
+      - (Optionally) filter by area/frequency
+      - Use the earliest created_at for that prediction_for
+      - Extract scenario columns 0..49
+    Then:
+      - Plot a boxplot with one box per market
+    """
+
+    # Parse the wanted hour
+    target_time = pd.to_datetime(prediction_time_str, utc=True)
+
+    market_values = {}  # market -> 1D array of 50 values
+
+    for filename, market in file_mapping.items():
+        path_data = base_path / filename
+        if not path_data.exists():
+            print(f"WARNING: {path_data} not found, skipping {market}.")
+            continue
+
+        df = pd.read_parquet(path_data)
+
+        # Ensure datetime types
+        df["prediction_for"] = pd.to_datetime(df["prediction_for"], utc=True)
+        df["created_at"] = pd.to_datetime(df["created_at"], utc=True)
+
+        # Optional filters: area and frequency
+        if area is not None and "area" in df.columns:
+            df = df[df["area"] == area]
+        if frequency is not None and "frequency" in df.columns:
+            df = df[df["frequency"] == frequency]
+
+        # Filter to the chosen production hour
+        df_hour = df[df["prediction_for"] == target_time]
+        if df_hour.empty:
+            print(f"No data for {market} at {target_time} (after filters). Skipping.")
+            continue
+
+        # Use the earliest created_at for that hour
+        df_hour = df_hour.sort_values("created_at")
+        first_row = df_hour.iloc[0]
+
+        # Scenario columns: "0".."49"
+        scenario_cols = [c for c in df.columns if c.isdigit()]
+        if not scenario_cols:
+            print(f"No scenario columns in {market}, skipping.")
+            continue
+
+        values = first_row[scenario_cols].astype(float).values
+        market_values[market] = values
+
+    if not market_values:
+        print("No markets had data for the chosen hour with the given filters.")
+        return
+
+    # ---- Plot: one box per market ----
+    markets = list(market_values.keys())
+    data = [market_values[m] for m in markets]
+
+    plt.figure(figsize=(12, 6))
+    plt.boxplot(data, labels=markets, showmeans=True)
+    plt.title(
+        f"Scenario price distributions for one production hour\n"
+        f"prediction_for = {target_time}"
+        + (f", area={area}" if area else "")
+        + (f", freq={frequency}" if frequency else "")
+    )
+    plt.ylabel("Scenario price")
+    plt.xlabel("Market")
+    plt.grid(axis="y")
+    plt.tight_layout()
+    plt.show()
+
+    # Optional: return the raw data in long form if you want to inspect later
+    long_df = (
+        pd.concat(
+            [
+                pd.DataFrame(
+                    {
+                        "market": m,
+                        "scenario": range(len(vals)),
+                        "value": vals,
+                        "prediction_for": target_time,
+                    }
+                )
+                for m, vals in market_values.items()
+            ],
+            ignore_index=True,
+        )
+    )
+    return long_df
+
+if __name__ == "__main__":
+    file_mapping = {
+    "dayahead_forecasts.parquet": "dayahead_forecasts",
+    "mfrr_cm_down_forecasts.parquet": "mfrr_cm_down_forecasts",
+    "mfrr_cm_up_forecasts.parquet": "mfrr_cm_up_forecasts",
+    "mfrr_eam_down_forecasts.parquet": "mfrr_eam_down_forecasts",
+    "mfrr_eam_up_forecasts.parquet": "mfrr_eam_up_forecasts",
+    "production_forecasts.parquet": "production_forecasts",
+}
+
+    BASE_PATH = Path("data/raw")
+    FIG_DIR = Path("figures")
+    process_all_markets(file_mapping, BASE_PATH, FIG_DIR)
