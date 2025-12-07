@@ -70,7 +70,7 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
     # x_ms: bid quantity
     x = model.addVars(idx_ms, lb=0, vtype=GRB.INTEGER, name="x")
     # r_ms: bid price
-    r = model.addVars(idx_ms, lb=-GRB.INFINITY, name="r")
+    r = model.addVars(idx_ms, lb=0, name="r")
     # δ_ms: 1 hvis budet aktiveres
     delta = model.addVars(idx_ms, vtype=GRB.BINARY, name="delta")
     # a_ms: aktivert kvantum
@@ -474,20 +474,17 @@ def run_model(time_str: str, n:int, det_policy_file=None, evaluate_deterministic
     """
 
     Pmax = {m: max(P[m, s] for s in S if (m, s) in idx_ms) for m in M}
-    Pmin = {m: min(P[m, s] for s in S if (m, s) in idx_ms) for m in M}
 
     print("PMAX = ", Pmax)
-    print("PMIN = ", Pmin)
 
     # Constrain bid price within price interval
     for (m, s) in idx_ms:
-        model.addConstr(
-            r[m, s] <= Pmax[m] - epsilon,
-        )
+        if Pmax[m] >= 0:
+            model.addConstr(
+                r[m, s] <= Pmax[m] - epsilon,
+            )
         
-        model.addConstr(
-            r[m, s] >= Pmin[m] + epsilon,
-        )
+
 
 
 
