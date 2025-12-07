@@ -10,5 +10,5 @@ if __name__ == "__main__":
     seed = 15
     number_of_runs = 20
     # run_model(time_str, n, seed, verbose=verbose)
-    run_robustness_experiment(time_str, n, number_of_runs, 5)
-    # run_deterministic_benchmark(time_str, seed, n=n)
+    # run_robustness_experiment(time_str, n, number_of_runs, 5)
+    run_deterministic_benchmark(time_str, n, seed)
