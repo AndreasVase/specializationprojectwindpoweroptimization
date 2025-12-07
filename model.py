@@ -85,7 +85,7 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
     mu = model.addVars([(m, w) for (m, w) in idx_mw], vtype=GRB.BINARY, name="mu")
 
 
-    # --- OBJECTIVE FUNCTION ---
+    # --- OBJECTIVE FUNCTION ---s
 
 
     nodes = scenario_tree["nodes"]  # fra build_scenario_tree
@@ -237,6 +237,7 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
     # Bygg W(u) fra V(u) og W(v). W(u) er mengden av alle w-noder som følger u
     W_u = {u: set().union(*(W[v] for v in V[u])) for u in U}
 
+    
     for u in U:
         for w in W_u[u]:
 
@@ -460,7 +461,7 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
         )
 
 
-
+    """
     # Constraining bid price in the EAM markets
     #for w in W_all:
     #    model.addConstr(
@@ -471,6 +472,30 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
     #        r["EAM_down", w] <= r_MAX_EAM_down,
     #        name=f"max_price_EAMdown_{w}"
     #    )
+    for w in W_all:
+        model.addConstr(
+            r["EAM_up", w] <= r_MAX_EAM_up,
+            name=f"max_price_EAMup_{w}"
+        )
+        model.addConstr(
+            r["EAM_down", w] <= r_MAX_EAM_down,
+            name=f"max_price_EAMdown_{w}"
+        )
+    """
+
+    Pmax = {m: max(P[m, s] for s in S if (m, s) in idx_ms) for m in M}
+
+    print("PMAX = ", Pmax)
+
+    # Constrain bid price within price interval
+    for (m, s) in idx_ms:
+        if Pmax[m] >= 0:
+            model.addConstr(
+                r[m, s] <= Pmax[m] - epsilon,
+            )
+        
+
+
 
 
 
@@ -509,6 +534,19 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
     model.optimize()
     runtime = model.Runtime
     print(f"Model optimized in {runtime:.2f} seconds.")
+
+    model.optimize()
+
+    print("Model is infeasible or unbounded, computing IIS...")
+    model.setParam("DualReductions", 0)
+    model.optimize()
+    if model.Status == GRB.INFEASIBLE:
+        model.computeIIS()
+        model.write("model_iis.ilp")
+        print("Wrote IIS to model_iis.ilp")
+    else:
+        print("Model is unbounded or still INF_OR_UNBD")
+
     # --- PRINT RESULTS ---
     if verbose:
         if evaluate_deterministic_policy:

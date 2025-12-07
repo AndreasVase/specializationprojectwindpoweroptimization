@@ -104,7 +104,7 @@ def sort_nodes(node_set):
 
 def print_results(model, x, r, a, delta, d, Q,
                   U, V, W, M1, M2, M3,
-                  max_u=3, max_v_per_u=3, max_w_per_v=5):
+                  max_u=3, max_v_per_u=3, max_w_per_v=28):
     """
     Skriver ut en komprimert oversikt over løsningen.
 
