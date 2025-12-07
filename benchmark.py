@@ -217,7 +217,14 @@ def solve_EV(
 
             max_prod_cap=None
             ):
+    
 
+    Pmax = {}
+    Pmax["CM_up"] = max(CM_up)
+    Pmax["CM_down"] = max(CM_down)
+    Pmax["DA"] = max(DA)
+    Pmax["EAM_up"] = max(EAM_up)
+    Pmax["EAM_down"] = max(EAM_down)
 
     P = {}
     P["CM_up"] = np.mean(CM_up)
@@ -245,8 +252,7 @@ def solve_EV(
     M_w = ["EAM_up", "EAM_down"]
     M  = M_u + M_v + M_w
 
-    R_max = 1000  # stor nok verdi for big-M
-    BIGM_1 = R_max
+    BIGM_1 = max(Pmax.values())
     BIGM_2 = max_prod_cap  # maksimal produksjonskapasitet
     BIGM_3 = 2*BIGM_2
 
@@ -525,14 +531,13 @@ def solve_EV(
         )
 
 
+    # Constrain bid price within price interval
+    for m in M:
+        if Pmax[m] >= 0:
+            model.addConstr(
+                r[m] <= Pmax[m]
+            )
 
-    # Constraining bid price in the EAM markets
-    model.addConstr(
-        r["EAM_up"] <= r_MAX_EAM_up
-    )
-    model.addConstr(
-        r["EAM_down"] <= r_MAX_EAM_down
-    )
 
 
     print("Added all constraints, starting to optimize model...")

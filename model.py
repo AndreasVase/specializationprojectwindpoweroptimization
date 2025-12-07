@@ -49,12 +49,10 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
     Q = utils.build_production_capacity(scenario_tree)
     C = utils.build_cost_parameters(U, V, W, P)
 
+    Pmax = {m: max(P[m, s] for s in S if (m, s) in idx_ms) for m in M}
 
 
-
-    R_max = 1000  # stor nok verdi for big-M
-
-    BIGM_1 = R_max
+    BIGM_1 = max(Pmax.values())
     BIGM_2 = max(Q.values())  # maksimal produksjonskapasitet
     BIGM_3 = 2*BIGM_2
 
@@ -483,23 +481,13 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
         )
     """
 
-    Pmax = {m: max(P[m, s] for s in S if (m, s) in idx_ms) for m in M}
-
-    print("PMAX = ", Pmax)
-
     # Constrain bid price within price interval
     for (m, s) in idx_ms:
         if Pmax[m] >= 0:
             model.addConstr(
-                r[m, s] <= Pmax[m] - epsilon,
+                r[m, s] <= Pmax[m]
             )
         
-
-
-
-
-
-    
 
 
     # --- EVALUATE DETERMINISTIC CM POLICY ---
