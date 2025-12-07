@@ -15,6 +15,13 @@ def run_deterministic_benchmark(time_str, n, seed):
 
     max_prod_cap = max(prod_cap)
 
+    Pmax = {}
+    Pmax["CM_up"] = max(CM_up)
+    Pmax["CM_down"] = max(CM_down)
+    Pmax["DA"] = max(DA)
+    Pmax["EAM_up"] = max(EAM_up)
+    Pmax["EAM_down"] = max(EAM_down)
+
     objective_value = 0
 
     mean_x_DA = 0
@@ -44,7 +51,8 @@ def run_deterministic_benchmark(time_str, n, seed):
                             EAM_down=EAM_down, 
                             prod_cap=prod_cap,
 
-                            max_prod_cap=max_prod_cap
+                            max_prod_cap=max_prod_cap,
+                            Pmax=Pmax
                             )
 
     x_CMup = x["CM_up"].X
@@ -67,7 +75,8 @@ def run_deterministic_benchmark(time_str, n, seed):
                                     r_CMup=r_CMup, 
                                     r_CMdown=r_CMdown,
 
-                                    max_prod_cap=max_prod_cap
+                                    max_prod_cap=max_prod_cap,
+                                    Pmax=Pmax
                                     )
             
             x_DA = x["DA"].X
@@ -94,7 +103,8 @@ def run_deterministic_benchmark(time_str, n, seed):
                                         x_DA=x_DA,
                                         r_DA=r_DA,
 
-                                        max_prod_cap=max_prod_cap
+                                        max_prod_cap=max_prod_cap,
+                                        Pmax=Pmax
                                         )
                 
                 x_EAMup = x["EAM_up"].X
@@ -131,7 +141,8 @@ def run_deterministic_benchmark(time_str, n, seed):
                                                         r_EAMup=r_EAMup, 
                                                         r_EAMdown=r_EAMdown,
 
-                                                        max_prod_cap=max_prod_cap
+                                                        max_prod_cap=max_prod_cap,
+                                                        Pmax=Pmax
                                 )
 
                                 obj = model.objVal
@@ -215,16 +226,10 @@ def solve_EV(
             r_EAMup=None, 
             r_EAMdown=None,
 
-            max_prod_cap=None
+            max_prod_cap=None,
+            Pmax=None
             ):
     
-
-    Pmax = {}
-    Pmax["CM_up"] = max(CM_up)
-    Pmax["CM_down"] = max(CM_down)
-    Pmax["DA"] = max(DA)
-    Pmax["EAM_up"] = max(EAM_up)
-    Pmax["EAM_down"] = max(EAM_down)
 
     P = {}
     P["CM_up"] = np.mean(CM_up)
