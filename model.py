@@ -556,8 +556,8 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
         "M_u": M_u,
         "M_v": M_v,
         "M_w": M_w,
-        "objective": model.ObjVal,   # <-- NEW
-        "runtime": runtime          # <-- NEW
+        "runtime": runtime,          # <-- NEW
+        "P": P
     }
 
     return output_dict

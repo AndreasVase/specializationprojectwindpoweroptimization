@@ -104,7 +104,7 @@ def sort_nodes(node_set):
 
 def print_results(model, x, r, a, delta, d, Q,
                   U, V, W, M1, M2, M3,
-                  max_u=3, max_v_per_u=3, max_w_per_v=28):
+                  max_u=1, max_v_per_u=1, max_w_per_v=1):
     """
     Skriver ut en komprimert oversikt over løsningen.
 
@@ -381,3 +381,112 @@ def select_scenarios(n, CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, seed=N
 
     # Returnerer også hvilke scenarie-indekser som ble valgt
     return CM_up_sel, CM_down_sel, DA_sel, EAM_up_sel, EAM_down_sel, wind_speed_sel, picked_indices.tolist()
+
+
+
+def write_results_to_file(filepath, CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, model, x, r, a, delta, d, Q,
+                          U, V, W, M1, M2, M3,
+                          max_u=1, max_v_per_u=1, max_w_per_v=1):
+    """
+    Skriver resultater til en fil. Hvis filen allerede finnes,
+    legges nye resultater til nederst i filen.
+
+    filepath       : sti til tekstfilen som skal skrives til
+    max_u          : maks antall u-noder (stage 2)
+    max_v_per_u    : maks antall v-noder per u (stage 3)
+    max_w_per_v    : maks antall w-noder per v (stage 4)
+    """
+
+    # Åpne fil i append-modus (leger til nye resultater nederst)
+    with open(filepath, "a") as f:
+
+        def w(text=""):
+            """Hjelpefunksjon for å skrive til fil med linjeskift."""
+            f.write(str(text) + "\n")
+
+        if model.Status != GRB.OPTIMAL:
+            w(f"Model not solved to optimality. Status: {model.Status}")
+            w()
+            return
+
+        w("\n======================")
+        w("   OPTIMAL SOLUTION")
+        w("======================\n")
+
+        w("CM up: ", CM_up)
+        w("CM down: ", CM_down)
+        w("DA: ", DA)
+        w("EAM up: ", EAM_up)
+        w("EAM down: ", EAM_down)
+
+        w(f"Objective value: {model.ObjVal:,.4f}\n")
+
+        # Sortering av noder for konsistent utskrift
+        U_sorted = sort_nodes(U)
+        if max_u is not None:
+            U_sorted = U_sorted[:max_u]
+
+        # ---------- Stage 2 ----------
+        w("--- Stage 2 (CM) – non-anticipative across u ---")
+        for u in U_sorted:
+            w(f"u = {u}:")
+            for m in M1:
+                w(
+                    f"  {m}: "
+                    f"x={x[m,u].X:.3f}, "
+                    f"a={a[m,u].X:.3f}, "
+                    f"r={r[m,u].X:.3f}, "
+                    f"δ={int(round(delta[m,u].X))}"
+                )
+            w()
+        w()
+
+        # Lagre hvilke v-noder vi bruker i stage 4
+        V_samples = {}
+
+        # ---------- Stage 3 ----------
+        w("--- Stage 3 (DA) – per u and v ---")
+        for u in U_sorted:
+            V_u_sorted = sort_nodes(V[u])
+            V_sample = V_u_sorted[:max_v_per_u]
+            V_samples[u] = V_sample
+
+            w(f"\nParent CM node u = {u}:")
+            for v in V_sample:
+                for m in M2:
+                    w(
+                        f"  {m} in {v}: "
+                        f"x={x[m,v].X:.3f}, "
+                        f"a={a[m,v].X:.3f}, "
+                        f"r={r[m,v].X:.3f}, "
+                        f"δ={int(round(delta[m,v].X))}"
+                    )
+        w()
+
+        # ---------- Stage 4 ----------
+        w("--- Stage 4 (EAM) – child w scenarios per v ---")
+        for u in U_sorted:
+            for v in V_samples[u]:
+                W_v_sorted = sort_nodes(W[v])
+                W_sample = W_v_sorted[:max_w_per_v]
+
+                w(f"\nParent scenario v = {v} (from u = {u}):")
+                for w_node in W_sample:
+                    for m in M3:
+                        w(
+                            f"  {m} in {w_node}: "
+                            f"x={x[m,w_node].X:.3f}, "
+                            f"a={a[m,w_node].X:.3f}, "
+                            f"r={r[m,w_node].X:.3f}, "
+                            f"δ={int(round(delta[m,w_node].X))}, "
+                            f"d={d[m,w_node].X:.3f}, "
+                            f"d_DA={d['DA', w_node].X:.3f}, "
+                            f"d_CM_u={d['CM_up', w_node].X:.3f}, "
+                            f"d_CM_d={d['CM_down', w_node].X:.3f}, "
+                            f"Q={Q[w_node]:.3f}"
+                        )
+        w()
+
+        w("=============================================")
+        w("            END OF RESULTS")
+        w("=============================================\n")
