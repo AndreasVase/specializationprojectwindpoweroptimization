@@ -8,7 +8,14 @@ import json
 import statistics
 
 
-def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_deterministic_policy=False, only_da_and_eam=False, verbose=True):
+def run_model(
+    time_str: str, 
+    n:int, seed=None, 
+    det_policy_file=None, 
+    evaluate_deterministic_policy=False, 
+    only_da_and_eam=False, 
+    verbose=True,
+    cm_penalty_multiplier: float = 2.0,):
 
     model = gp.Model()
 
@@ -47,7 +54,7 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
 
     P = utils.build_price_parameter(scenario_tree)
     Q = utils.build_production_capacity(scenario_tree)
-    C = utils.build_cost_parameters(U, V, W, P)
+    C = utils.build_cost_parameters(U, V, W, P, cm_penalty_multiplier=cm_penalty_multiplier)
 
     Pmax = {m: max(P[m, s] for s in S if (m, s) in idx_ms) for m in M}
 
@@ -634,6 +641,109 @@ def run_robustness_experiment(
     return results
 
 
+def run_cm_penalty_experiment(
+    time_str: str,
+    n: int,
+    num_runs: int,
+    min_multiplier: int = 1,
+    max_multiplier: int = 30,
+    base_seed: int | None = None,
+    verbose_runs: bool = False,
+    **run_model_kwargs,
+):
+    """
+    For each penalty multiplier in [min_multiplier, max_multiplier],
+    run the model `num_runs` times and record how often the model
+    bids in the CM markets (CM_up, CM_down).
 
+    A run is counted as 'CM bid' if any x[CM_up, s] > 0 or x[CM_down, s] > 0
+    in the optimal solution, for any scenario s.
 
+    Returns:
+        A list of dicts, one per multiplier, with:
+            - cm_penalty_multiplier
+            - num_runs
+            - num_runs_with_cm_bids
+            - share_with_cm_bids
+            - cm_bid_flags (list[0/1], one entry per run)
+    """
 
+    # We'll collect everything here and return only once, at the end
+    all_results = []
+
+    eps = 1e-6  # what counts as "positive"
+
+    # Outer loop: over penalty multipliers
+    for gamma in range(min_multiplier, max_multiplier + 1):
+        cm_bid_flags = []  # store 1/0 for each of the num_runs runs
+
+        if verbose_runs:
+            print(f"\n=== Penalty multiplier γ = {gamma} ===")
+
+        # Inner loop: repeated runs for this gamma
+        for run_idx in range(num_runs):
+            # Construct a seed so different (gamma, run_idx) => different seed
+            if base_seed is not None:
+                seed = base_seed + (gamma - min_multiplier) * num_runs + run_idx
+            else:
+                seed = None
+
+            output = run_model(
+                time_str=time_str,
+                n=n,
+                seed=seed,
+                cm_penalty_multiplier=float(gamma),
+                verbose=verbose_runs,
+                **run_model_kwargs,
+            )
+
+            x = output["x"]      # tupledict of bids
+            M_u = output["M_u"]  # should contain "CM_up" and "CM_down"
+
+            # Check whether this run has any CM bid > 0
+            cm_bid_this_run = False
+            for (m, s), var in x.items():
+                if m in M_u and var.X > eps:
+                    cm_bid_this_run = True
+                    break
+
+            cm_bid_flags.append(1 if cm_bid_this_run else 0)
+
+            if verbose_runs:
+                print(
+                    f"  Run {run_idx + 1}/{num_runs}: "
+                    f"CM bid = {cm_bid_this_run}"
+                )
+
+        num_with_cm_bids = sum(cm_bid_flags)
+        share_with_cm_bids = num_with_cm_bids / num_runs if num_runs > 0 else float("nan")
+
+        # Store a full record for this gamma
+        all_results.append(
+            {
+                "cm_penalty_multiplier": gamma,
+                "num_runs": num_runs,
+                "num_runs_with_cm_bids": num_with_cm_bids,
+                "share_with_cm_bids": share_with_cm_bids,
+                "cm_bid_flags": cm_bid_flags,  # list of length num_runs
+            }
+        )
+
+    # ---- After ALL multipliers are done, print the summary for each γ ----
+    print("\n=== CM BID FREQUENCY VS PENALTY MULTIPLIER ===")
+    for res in all_results:
+        gamma = res["cm_penalty_multiplier"]
+        num_with = res["num_runs_with_cm_bids"]
+        num_total = res["num_runs"]
+        share = res["share_with_cm_bids"] * 100.0
+
+        # Keep your original style:
+        # gamma1=min_multiplier: (x_1/N) runs with CM bids (fraction one%)
+        print(
+            f"gamma{gamma}={gamma}: "
+            f"({num_with}/{num_total}) runs with CM bids "
+            f"({share:.1f} %)"
+        )
+
+    # And only now return everything
+    return all_results

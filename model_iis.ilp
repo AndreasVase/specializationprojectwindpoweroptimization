@@ -1,0 +1,11 @@
+\ Model _copy
+\ LP format - for model browsing. Use MPS format to capture full model detail.
+Maximize
+ 
+Subject To
+ act_upper[DA,v47]: r[DA,v47] + 11.42422726237818 delta[DA,v47]
+   <= -0.2525331709125336
+Bounds
+Binaries
+ delta[DA,v47]
+End

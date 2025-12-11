@@ -68,25 +68,34 @@ def build_production_capacity(tree):
 
 
 
-def build_cost_parameters(U, V, W, P):
+def build_cost_parameters(U, V, W, P, cm_penalty_multiplier: float = 2.0):
+    """
+    Build cost coefficients C[(m, w)] for imbalance penalties.
+
+    cm_penalty_multiplier scales the penalty cost for CM and EAM markets.
+    Default 2.0 reproduces the current behaviour.
+    """
     C = {}  # (m, w) -> cost coefficient
     for u in U:
-        cm_up_price = P[("CM_up", u)]  # pris for EAM up i dette w-scenariet
-        cm_down_price = P[("CM_down", u)]  # pris for EAM down i dette w-scenariet
+        cm_up_price = P[("CM_up", u)]      # CM up price in this u-scenario
+        cm_down_price = P[("CM_down", u)]  # CM down price in this u-scenario
 
-        for v in V[u]:  # alle v som følger etter u
+        for v in V[u]:  # all v following u
             da_price = P[("DA", v)]
 
-            for w in W[v]:  # alle w som følger etter v
-                eam_up_price = P[("EAM_up", w)]  # pris for EAM up i dette w-scenariet
-                eam_down_price = P[("EAM_down", w)]  # pris for EAM down i dette w-scenariet
+            for w in W[v]:  # all w following v
+                eam_up_price = P[("EAM_up", w)]
+                eam_down_price = P[("EAM_down", w)]
 
-                # her definerer vi kost for ALLE markeder i dette terminalscenariet
-                C[("CM_up",    w)] = 2.0 * cm_up_price
-                C[("CM_down",  w)] = 2.0 * cm_down_price
-                C[("DA",       w)] = eam_up_price  # bruker EAM up price som kost for DA-avvik. SIMPLIFISERING AV VIRKELIGHETEN
-                C[("EAM_up",   w)] = 2.0 * eam_up_price
-                C[("EAM_down", w)] = 2.0 * eam_down_price
+                # Penalty costs in terminal scenario w
+                C[("CM_up",    w)] = cm_penalty_multiplier * cm_up_price
+                C[("CM_down",  w)] = cm_penalty_multiplier * cm_down_price
+                # DA imbalance cost (simplified): keep as before
+                C[("DA",       w)] = eam_up_price
+                # You can choose whether EAM penalties should scale too; here they do:
+                C[("EAM_up",   w)] = cm_penalty_multiplier * eam_up_price
+                C[("EAM_down", w)] = cm_penalty_multiplier * eam_down_price
+
     return C
 
 
@@ -104,7 +113,7 @@ def sort_nodes(node_set):
 
 def print_results(model, x, r, a, delta, d, Q,
                   U, V, W, M1, M2, M3,
-                  max_u=3, max_v_per_u=3, max_w_per_v=28):
+                  max_u=1, max_v_per_u=1, max_w_per_v=1):     #was 3,3,28
     """
     Skriver ut en komprimert oversikt over løsningen.
 
