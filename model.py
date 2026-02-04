@@ -15,10 +15,16 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
     # --- SETS ---
     I = [1, 2, 3, 4]   # stages
 
+    A = ["up", "down"]  # regulation directions
+
     M_u = ["CM_up", "CM_down"]
     M_v = ["DA"]
     M_w = ["EAM_up", "EAM_down"]
+
     M  = M_u + M_v + M_w
+
+    M_up = ["CM_up", "EAM_up"]
+    M_down = ["CM_down", "EAM_down"]
 
 
     # Bygg treet
@@ -38,7 +44,7 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
     W_all = set().union(*W.values())
 
     # bygg indeksmengder (m,s)
-    idx_ms, idx_mw = tree.build_index_sets(U=U, V_all=V_all, W_all=W_all, M_u=M_u, M_v=M_v, M_w=M_w, M=M)
+    idx_ms, idx_mw, idx_aw = tree.build_index_sets(U=U, V_all=V_all, W_all=W_all, M_u=M_u, M_v=M_v, M_w=M_w, M=M, A=A)
     print("[INFO] Built index sets.")
 
     # --- PARAMETERS ---
@@ -78,9 +84,22 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
     d = model.addVars(idx_mw, lb=0, ub=BIGM_2, name="d")
     # Binær variabel som indikerer om vi faktisk legger inn et bud (≠ 0)
     b = model.addVars([(m, s) for (m, s) in idx_ms if m in (M_u + M_w)], vtype=GRB.BINARY, name="b")
- 
-    # Binærvariabel som indikerer om det er avvik i marked m i scenario w
-    mu = model.addVars([(m, w) for (m, w) in idx_mw], vtype=GRB.BINARY, name="mu")
+    
+    # Mengde fysisk produksjon
+    l = model.addVars([w for w in W_all], lb=0, name="l")
+    # Imbalance. Differanse mellom faktisk produksjon og DA-forpliktelse
+    i = model.addVars([w for w in W_all], lb=0, name="i")
+
+    """
+    # Overlappende avvik mellom CM og EAM for retning a
+    d_overlap = model.addVars(idx_aw, lb=0, name="d_overlap")
+    # Binær variabel for å håndtere overlappende avvik
+    eta_overlap = model.addVars(idx_aw, vtype=GRB.BINARY, name="eta_overlap")
+    # minimum av a_CM og d_EAM for retning a
+    mu = model.addVars(idx_aw, lb=0, name="mu")
+    # variabel for minimumsfunksjon. 1 dersom d_EAM < a_CM og 0 ellers
+    lam = model.addVars(idx_aw, lb=0, name="lam")
+    """
 
 
     # --- OBJECTIVE FUNCTION ---s
@@ -118,17 +137,31 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
                     P[ (m, w) ] * a[m, w] for m in M_w
                 )
 
-                penalty_w = gp.quicksum(
-                    C[ (m, w) ] * d[m, w] for m in M
+                imbalance_w = gp.quicksum(
+                    P[ ("imb", w) ] * i[w] for w in W_all
                 )
 
-                term_v += pi_w_v * (revenue_w - penalty_w)
+                penalty_w = gp.quicksum(
+                    C[ (m, w) ] * d[m, w] for m in M_u + M_w
+                )
+
+                term_v += pi_w_v * (revenue_w + imbalance_w - penalty_w)
 
             term_u += pi_v_u * term_v
 
         obj += pi_u * term_u
 
     model.setObjective(obj, GRB.MAXIMIZE)
+
+
+    # --- PRODUCTION CONSTRAINTS ---
+
+    for w in W_all:
+        # 1) l_w <= Q_w
+        model.addConstr(
+            l[w] <= Q[w],
+            name=f"prod_cap[{w}]"
+        )
 
 
     # --- ACTIVATION CONSTRAINTS ---
@@ -168,6 +201,13 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
         model.addConstr(
             P[(m, s)] - r[m, s] <= BIGM_1 * delta[m, s] - epsilon,
             name=f"act_lower[{m},{s}]"
+        )
+
+    for w in W_all:
+        # Ikke aktivert både opp- og nedregulering for EAM i samme scenario
+        model.addConstr(
+            delta["EAM_up", w] + delta["EAM_down", w] <= 1,
+            name=f"no_up_and_down[{w}]"
         )
 
 
@@ -235,209 +275,53 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
     # Bygg W(u) fra V(u) og W(v). W(u) er mengden av alle w-noder som følger u
     W_u = {u: set().union(*(W[v] for v in V[u])) for u in U}
 
-    
+
+    # Forpliktelse i CM må følges opp i EAM, eller gi straff for brudd på CM
     for u in U:
         for w in W_u[u]:
-
-            # Deviation constraints for CM_up
-
-            """
-            # hjelpevariabel for diff
-            z1 = model.addVar(lb=-GRB.INFINITY, name=f"diff_CM_up_{u}_{w}")
             model.addConstr(
-                z1 == a["CM_up", u] - x["EAM_up", w],
-                name=f"def_diff_CM_up_{u}_{w}"
+                d["CM_up", w] >= a["CM_up", u] - x["EAM_up", w]
             )
-
-            # d["CM_up", w] = max(z, 0)
-            model.addGenConstrMax(
-                d["CM_up", w],          # resultatvariabel
-                [z1],                    # KUN variabler i lista
-                constant=0.0,           # 0 som konstant bidrag
-                name=f"max_dev_CM_up_{u}_{w}",
-            )
-            """
-
-            # Deviation constraints for CM_up
-
-            # diff = a_CM_up[u] - x_EAM_up[w]
-            diff = a["CM_up", u] - x["EAM_up", w]
-
-            # diff <= M * mu
             model.addConstr(
-                diff <= BIGM_2 * mu["CM_up", w]
+                d["CM_down", w] >= a["CM_down", u] - x["EAM_down", w],  
             )
 
-            # diff >= -M * (1 - mu)
-            model.addConstr(
-                diff >= -BIGM_2 * (1 - mu["CM_up", w]),
-            )
-
-            # d_CM_up[w] >= diff
-            model.addConstr(
-                d["CM_up", w] >= diff,
-            )
-
-            # d_CM_up[w] <= diff + M * (1 - mu)
-            model.addConstr(
-                d["CM_up", w] <= diff + BIGM_2 * (1 - mu["CM_up", w])
-            )
-
-            # d_CM_up[w] <= M * mu
-            model.addConstr(
-                d["CM_up", w] <= BIGM_2 * mu["CM_up", w]
-            )
-
-
-
-
-            # Deviation constraints for CM_down
-
-            # diff = a_CM_up[u] - x_EAM_up[w]
-            diff = a["CM_down", u] - x["EAM_down", w]
-
-            # diff <= M * mu
-            model.addConstr(
-                diff <= BIGM_2 * mu["CM_down", w]
-            )
-
-            # diff >= -M * (1 - mu)
-            model.addConstr(
-                diff >= -BIGM_2 * (1 - mu["CM_down", w]),
-            )
-
-            # d_CM_up[w] >= diff
-            model.addConstr(
-                d["CM_down", w] >= diff,
-            )
-
-            # d_CM_up[w] <= diff + M * (1 - mu)
-            model.addConstr(
-                d["CM_down", w] <= diff + BIGM_2 * (1 - mu["CM_down", w])
-            )
-
-            # d_CM_up[w] <= M * mu
-            model.addConstr(
-                d["CM_down", w] <= BIGM_2 * mu["CM_down", w]
-            )
-
-
-            ## x_{3↓,w} + d_{1↓,w} >= a_{1↓,u}
-            #model.addConstr(
-            #    x["EAM_down", w] + d["CM_down", w] >= a["CM_down", u],
-            #    name=f"cov_CMdown[{u},{w}]"
-            #)
-
-
-    # Deviation constraints for EAM down market
-
+    
+    # Balansere produksjon og DA-forpliktelse
     for v in V_all:
         for w in W[v]:
-
-            # EAM_down can exceed DA, but it will lead to a deviation. It must be constrained from above and below since
-            # the deviation cost can be negative
-            
-            diff = a["EAM_down", w] - a["DA", v]
-
+            # Imbalance definisjon
             model.addConstr(
-                diff <= BIGM_2 * mu["EAM_down", w]
+                i[w] == l[w] - a["DA", v]
             )
-
-            model.addConstr(
-                diff >= -BIGM_2 * (1 - mu["EAM_down", w])
-            )
-
-            # 3) d >= Delta
-            model.addConstr(
-                d["EAM_down", w] >= diff
-            )
-
-            # 4) d <= Delta + M * (1 - eta)
-            model.addConstr(
-                d["EAM_down", w] <= diff + BIGM_2 * (1 - mu["EAM_down", w])
-            )
-
-            # 5) d <= M * eta
-            model.addConstr(
-                d["EAM_down", w] <= BIGM_2 * mu["EAM_down", w]
-            )
-            
-
-
-    # Deviation constraints for DA market. 
-    # The variable d_DA_w must be constrained both upwards and downwards to avoid allowing
-    # d_DA_w to be set high to absorb deviation from the EAM up bids
-
+    
+    # Avvik i EAM-markedet
     for v in V_all:
         for w in W[v]:
-
-            N = a["DA", v] - a["EAM_down", w]
-
+            # EAM up
             model.addConstr(
-                N - Q[w] <= BIGM_2 * mu["DA", w]
+                d["EAM_up", w] >= a["DA", v] + a["EAM_up", w] - l[w] - BIGM_2*(1 - delta["EAM_up", w])
+            )
+            model.addConstr(
+                d["EAM_up", w] <= BIGM_2 * delta["EAM_up", w]
+            )
+            model.addConstr(
+                d["EAM_up", w] <= a["EAM_up", w]
+            )
+            # EAM down
+            model.addConstr(
+                d["EAM_down", w] >= a["DA", v] + a["EAM_down", w] - l[w] - BIGM_2*(1 - delta["EAM_down", w])
+            )
+            model.addConstr(
+                d["EAM_down", w] <= BIGM_2 * delta["EAM_down", w]
+            )
+            model.addConstr(
+                d["EAM_down", w] <= a["EAM_down", w]
             )
 
-            model.addConstr(
-                N - Q[w] >= -BIGM_2 * (1 - mu["DA", w])
-            )
 
-            model.addConstr(
-                d["DA", w] >= N - Q[w]
-            )
 
-            model.addConstr(
-                d["DA", w] <= N - Q[w] + BIGM_2 * (1 - mu["DA", w])
-            )
 
-            model.addConstr(
-                d["DA", w] <= BIGM_2 * mu["DA", w]
-            )
-            
-            # --------------------------------------------------
-
-    # Deviation constraints for EAM up market
-
-    for v in V_all:
-        for w in W[v]:
-            # EAM up deviation constraints
-
-            # Dette representerer hvor mye ekstra kraft du mangler i scenario w for å levere DA-leveranse + EAM_down-reduksjon + EAM_up-økning 
-            # etter at DA-shortfall (d_DA) og EAM_down-shortfall (d_EAM_down) er tatt hensyn til.
-
-            # Z_w = a_DA[v] - a_EAM_down[w] + a_EAM_up[w] - Q[w] - d_DA[w]
-            Z = (
-            a["DA", v]
-            - a["EAM_down", w]
-            + a["EAM_up", w]
-            - d["DA", w]
-            + d["EAM_down", w]
-            - Q[w]
-        )
-
-            # 1) Z <= M * eta
-            model.addConstr(
-                Z <= BIGM_3 * mu["EAM_up", w]
-            )
-
-            # 2) Z >= -M * (1 - eta)
-            model.addConstr(
-                Z >= -BIGM_3 * (1 - mu["EAM_up", w])
-            )
-
-            # 3) d_EAM_up >= Z
-            model.addConstr(
-                d["EAM_up", w] >= Z
-            )
-
-            # 4) d_EAM_up <= Z + M * (1 - eta)
-            model.addConstr(
-                d["EAM_up", w] <= Z + BIGM_3 * (1 - mu["EAM_up", w])
-            )
-
-            # 5) d_EAM_up <= M * eta
-            model.addConstr(
-                d["EAM_up", w] <= BIGM_3 * mu["EAM_up", w]
-            )
 
 
             

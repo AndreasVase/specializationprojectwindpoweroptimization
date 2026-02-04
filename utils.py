@@ -87,7 +87,7 @@ def build_cost_parameters(U, V, W, P):
                 # her definerer vi kost for ALLE markeder i dette terminalscenariet
                 C[("CM_up",    w)] = 2.0 * cm_up_price
                 C[("CM_down",  w)] = 2.0 * cm_down_price
-                C[("DA",       w)] = imb 
+                C[("DA",       w)] = imb # Can be defined as cost, but is now used as a price
                 C[("EAM_up",   w)] = 2.0 * eam_up_price
                 C[("EAM_down", w)] = 2.0 * eam_down_price
     return C
@@ -107,7 +107,7 @@ def sort_nodes(node_set):
 
 def print_results(model, x, r, a, delta, d, Q,
                   U, V, W, M1, M2, M3,
-                  max_u=3, max_v_per_u=3, max_w_per_v=28):
+                  max_u=3, max_v_per_u=3, max_w_per_v=4):
     """
     Skriver ut en komprimert oversikt over løsningen.
 
