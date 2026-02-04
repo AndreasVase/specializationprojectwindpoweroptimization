@@ -15,15 +15,15 @@ class Node:
 
 def build_scenario_tree(time_str: str, n:int, seed=None) -> Dict[str, Any]:
     
-    CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, picked_scenario_indices = read.load_parameters_from_parquet(time_str, n, seed)
+    CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, imb, picked_scenario_indices = read.load_parameters_from_parquet(time_str, n, seed)
     print("Read parameters from parquet.")
-    print (CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed)
+    print (CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, imb)
     """
     Bygger scenariotre for:
       - Stage 1: root (før alt er kjent)
       - Stage 2: CM-priser (CM_up, CM_down)
       - Stage 3: DA-pris
-      - Stage 4: EAM-priser + vind (EAM_up, EAM_down, wind_speed)
+      - Stage 4: EAM-priser + vind + imbalance (EAM_up, EAM_down, wind_speed, imb)
 
     Input kan være lister, numpy-arrays, etc.
     Antall alternativer i hver liste kan være vilkårlig.
@@ -69,16 +69,19 @@ def build_scenario_tree(time_str: str, n:int, seed=None) -> Dict[str, Any]:
     n_EAM_up = len(EAM_up)
     n_EAM_down = len(EAM_down)
     n_wind = len(wind_speed)
-    leaf_cond_prob = 1.0 / (n_EAM_up * n_EAM_down * n_wind)
+    n_imb = len(imb)
+    
+    leaf_cond_prob = 1.0 / (n_EAM_up * n_EAM_down * n_wind * n_imb)
 
     leaf_nodes: List[str] = []
     for parent_v in stage3_nodes:
-        for p_eup, p_edown, w in product(EAM_up, EAM_down, wind_speed):
+        for p_eup, p_edown, w, i in product(EAM_up, EAM_down, wind_speed, imb):
             name = f"w{len(leaf_nodes) + 1}"
             info = {
                 "EAM_up": p_eup,
                 "EAM_down": p_edown,
                 "wind_speed": w,
+                "imb": i
             }
             add_node(
                 name,
@@ -88,7 +91,7 @@ def build_scenario_tree(time_str: str, n:int, seed=None) -> Dict[str, Any]:
                 cond_prob=leaf_cond_prob,
             )
             leaf_nodes.append(name)
-    print("[INFO] Added stage 4 EAM + wind nodes.")
+    print("[INFO] Added stage 4 EAM + wind + imbalance  nodes.")
     # --- Bygg scenarier (én per løvnode) ---
     scenarios = []
     for leaf in leaf_nodes:
