@@ -42,6 +42,8 @@ def build_price_parameter(tree):
                 P[("EAM_up", s)] = node.info["EAM_up"]
             if "EAM_down" in node.info:
                 P[("EAM_down", s)] = node.info["EAM_down"]
+            if "imb" in node.info:
+                P[("imb", s)] = node.info["imb"]
 
     return P
 
@@ -80,11 +82,12 @@ def build_cost_parameters(U, V, W, P):
             for w in W[v]:  # alle w som følger etter v
                 eam_up_price = P[("EAM_up", w)]  # pris for EAM up i dette w-scenariet
                 eam_down_price = P[("EAM_down", w)]  # pris for EAM down i dette w-scenariet
+                imb = P[("imb", w)]
 
                 # her definerer vi kost for ALLE markeder i dette terminalscenariet
                 C[("CM_up",    w)] = 2.0 * cm_up_price
                 C[("CM_down",  w)] = 2.0 * cm_down_price
-                C[("DA",       w)] = eam_up_price  # bruker EAM up price som kost for DA-avvik. SIMPLIFISERING AV VIRKELIGHETEN
+                C[("DA",       w)] = imb 
                 C[("EAM_up",   w)] = 2.0 * eam_up_price
                 C[("EAM_down", w)] = 2.0 * eam_down_price
     return C
@@ -347,7 +350,7 @@ def average_prices(prices_list):
         return None
     return sum(prices_list) / len(prices_list)
 
-def select_scenarios(n, CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, seed=None):
+def select_scenarios(n, CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, imb, seed=None):
     """
     Velger n scenarier tilfeldig og konsistent på tvers av alle lister.
     """
@@ -356,7 +359,7 @@ def select_scenarios(n, CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, seed=N
     m = len(DA)
 
     # Sjekk at alle lister har samme lengde
-    assert all(len(lst) == m for lst in [CM_up, CM_down, EAM_up, EAM_down, wind_speed]), \
+    assert all(len(lst) == m for lst in [CM_up, CM_down, EAM_up, EAM_down, wind_speed, imb]), \
         "Alle lister må ha samme lengde"
 
     if n > m:
@@ -378,6 +381,7 @@ def select_scenarios(n, CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, seed=N
     EAM_up_sel     = pick(EAM_up)
     EAM_down_sel   = pick(EAM_down)
     wind_speed_sel = pick(wind_speed)
+    imb_sel        = pick(imb)  
 
     # Returnerer også hvilke scenarie-indekser som ble valgt
-    return CM_up_sel, CM_down_sel, DA_sel, EAM_up_sel, EAM_down_sel, wind_speed_sel, picked_indices.tolist()
+    return CM_up_sel, CM_down_sel, DA_sel, EAM_up_sel, EAM_down_sel, wind_speed_sel, imb_sel, picked_indices.tolist()

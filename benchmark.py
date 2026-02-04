@@ -11,7 +11,7 @@ import read
 
 def run_deterministic_benchmark(time_str, n, seed):
 
-    CM_up, CM_down, DA, EAM_up, EAM_down, prod_cap, picked_scenario_indices = read.load_parameters_from_parquet(time_str, n, seed)
+    CM_up, CM_down, DA, EAM_up, EAM_down, prod_cap, imb, picked_scenario_indices = read.load_parameters_from_parquet(time_str, n, seed)
 
     max_prod_cap = max(prod_cap)
 
