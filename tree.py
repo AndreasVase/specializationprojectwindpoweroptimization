@@ -15,9 +15,13 @@ class Node:
 
 def build_scenario_tree(time_str: str, n:int, seed=None) -> Dict[str, Any]:
     
-    CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, imb, picked_scenario_indices = read.load_parameters_from_parquet(time_str, n, seed)
+    CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, picked_scenario_indices = read.load_parameters_from_parquet(time_str, n, seed)
+
     print("Read parameters from parquet.")
-    print (CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, imb)
+    print (CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed)
+
+    imb = ["up", "down"] # Imbalance er enten EAM_up eller EAM_down, med 50% sannsynlighet hver
+
     """
     Bygger scenariotre for:
       - Stage 1: root (før alt er kjent)
@@ -65,7 +69,8 @@ def build_scenario_tree(time_str: str, n:int, seed=None) -> Dict[str, Any]:
             add_node(name, stage=3, parent=parent_u, info=info, cond_prob=da_cond_prob)
             stage3_nodes.append(name)
     print("[INFO] Added stage 3 DA nodes.")
-    # --- Stage 4: EAM + vind (alle kombinasjoner) ---
+
+    # --- Stage 4: EAM + vind + imbalance (alle kombinasjoner) ---
     n_EAM_up = len(EAM_up)
     n_EAM_down = len(EAM_down)
     n_wind = len(wind_speed)
@@ -76,12 +81,19 @@ def build_scenario_tree(time_str: str, n:int, seed=None) -> Dict[str, Any]:
     leaf_nodes: List[str] = []
     for parent_v in stage3_nodes:
         for p_eup, p_edown, w, i in product(EAM_up, EAM_down, wind_speed, imb):
+
+            # For imbalance, vi antar at den er enten EAM_up eller EAM_down, med 50% sannsynlighet hver
+            if i == "up":
+                p_imb = p_eup
+            elif i == "down":
+                p_imb = p_edown
+
             name = f"w{len(leaf_nodes) + 1}"
             info = {
                 "EAM_up": p_eup,
                 "EAM_down": p_edown,
                 "wind_speed": w,
-                "imb": i
+                "imb": p_imb
             }
             add_node(
                 name,
@@ -91,7 +103,8 @@ def build_scenario_tree(time_str: str, n:int, seed=None) -> Dict[str, Any]:
                 cond_prob=leaf_cond_prob,
             )
             leaf_nodes.append(name)
-    print("[INFO] Added stage 4 EAM + wind + imbalance  nodes.")
+    print("[INFO] Added stage 4 EAM + wind + imbalance nodes.")
+    
     # --- Bygg scenarier (én per løvnode) ---
     scenarios = []
     for leaf in leaf_nodes:

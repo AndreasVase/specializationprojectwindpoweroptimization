@@ -270,16 +270,15 @@ def load_parameters_from_parquet(time_str: str, scenarios: int, seed=None):
     EAM_up     = data["mfrr_eam_up_forecasts"]
     EAM_down   = data["mfrr_eam_down_forecasts"]
     wind_speed = data["production_forecasts"]
-    imb        = data["imbalance_forecasts"]
     
     # Goes through EAM_down and changes the sign of each value
     for i in range(len(EAM_down)):
         EAM_down[i] = -EAM_down[i]
 
     # We have added seed to be able to generate the same random numbers
-    CM_up_sel, CM_down_sel, DA_sel, EAM_up_sel, EAM_down_sel, wind_speed_sel, imb_sel, picked_scenario_indices = select_scenarios(scenarios, CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, imb, seed)
+    CM_up_sel, CM_down_sel, DA_sel, EAM_up_sel, EAM_down_sel, wind_speed_sel, picked_scenario_indices = select_scenarios(scenarios, CM_up, CM_down, DA, EAM_up, EAM_down, wind_speed, seed)
 
-    return CM_up_sel, CM_down_sel, DA_sel, EAM_up_sel, EAM_down_sel, wind_speed_sel, imb_sel, picked_scenario_indices
+    return CM_up_sel, CM_down_sel, DA_sel, EAM_up_sel, EAM_down_sel, wind_speed_sel, picked_scenario_indices
 
 
 # path = "data/raw/mfrr_eam_up_forecasts.parquet"
