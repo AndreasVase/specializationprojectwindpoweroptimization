@@ -175,7 +175,7 @@ def build_sets_from_tree(tree):
     return U, V, W, S
 
 
-def build_index_sets(U, V_all, W_all, M_u, M_v, M_w, M, A):
+def build_index_sets(U, V_all, W_all, M_u, M_v, M_w, M):
     """
     Build index sets for (m,s) and (m,w).
 
@@ -207,9 +207,5 @@ def build_index_sets(U, V_all, W_all, M_u, M_v, M_w, M, A):
         for m in M:
             idx_mw.append((m, w))
 
-    idx_aw = []
-    for w in W_all:
-        for a in A:
-            idx_aw.append((a, w))
 
-    return idx_ms, idx_mw, idx_aw
+    return idx_ms, idx_mw

@@ -15,16 +15,11 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
     # --- SETS ---
     I = [1, 2, 3, 4]   # stages
 
-    A = ["up", "down"]  # regulation directions
-
     M_u = ["CM_up", "CM_down"]
     M_v = ["DA"]
     M_w = ["EAM_up", "EAM_down"]
 
     M  = M_u + M_v + M_w
-
-    M_up = ["CM_up", "EAM_up"]
-    M_down = ["CM_down", "EAM_down"]
 
 
     # Bygg treet
@@ -44,7 +39,7 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
     W_all = set().union(*W.values())
 
     # bygg indeksmengder (m,s)
-    idx_ms, idx_mw, idx_aw = tree.build_index_sets(U=U, V_all=V_all, W_all=W_all, M_u=M_u, M_v=M_v, M_w=M_w, M=M, A=A)
+    idx_ms, idx_mw = tree.build_index_sets(U=U, V_all=V_all, W_all=W_all, M_u=M_u, M_v=M_v, M_w=M_w, M=M)
     print("[INFO] Built index sets.")
 
     # --- PARAMETERS ---
@@ -87,7 +82,7 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
     
     # Mengde fysisk produksjon
     l = model.addVars([w for w in W_all], lb=0, name="l")
-    # Imbalance. Differanse mellom faktisk produksjon og DA-forpliktelse
+    # Imbalance. Differanse mellom faktisk produksjon og produksjonsforpliktelse
     i = model.addVars([w for w in W_all], lb=0, name="i")
 
     """
@@ -203,6 +198,8 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
             name=f"act_lower[{m},{s}]"
         )
 
+
+
     for w in W_all:
         # Ikke aktivert både opp- og nedregulering for EAM i samme scenario
         model.addConstr(
@@ -287,12 +284,12 @@ def run_model(time_str: str, n:int, seed=None, det_policy_file=None, evaluate_de
             )
 
     
-    # Balansere produksjon og DA-forpliktelse
+    # Balansere produksjon og produksjonsforpliktelse
     for v in V_all:
         for w in W[v]:
             # Imbalance definisjon
             model.addConstr(
-                i[w] == l[w] - a["DA", v]
+                i[w] == l[w] - a["DA", v] - a["EAM_up", w] + a["EAM_down", w]
             )
     
     # Avvik i EAM-markedet
